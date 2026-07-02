@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Car Dealer Monitor</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9A%97%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">🚗</span>
+      <div>
+        <h1>Car Dealer Monitor</h1>
+        <p class="tagline">Watching your dealers for the cars you want</p>
+      </div>
+    </div>
+    <div class="actions">
+      <a class="btn ghost" href="/api/digest" target="_blank" rel="noopener">Open digest ↗</a>
+      <button class="btn primary" id="scanBtn">Scan now</button>
+    </div>
+  </header>
+
+  <section class="stats" id="stats"></section>
+
+  <section class="controls">
+    <input type="search" id="search" placeholder="Search make, model, dealer…">
+    <select id="labelFilter"><option value="">All watchlist items</option></select>
+    <select id="dealerFilter"><option value="">All dealers</option></select>
+    <select id="sort">
+      <option value="price-asc">Price: low → high</option>
+      <option value="price-desc">Price: high → low</option>
+      <option value="mileage-asc">Mileage: low → high</option>
+      <option value="year-desc">Year: newest</option>
+      <option value="new">Newest listings</option>
+    </select>
+    <label class="toggle"><input type="checkbox" id="newOnly"> New only</label>
+  </section>
+
+  <main id="results" class="grid"></main>
+  <div id="empty" class="empty" hidden>No listings match your filters yet. Try “Scan now”.</div>
+
+  <footer class="foot">
+    Configure your watchlist in <code>src/config/watchlist.js</code> and your dealers in <code>src/config/dealers.js</code>.
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>

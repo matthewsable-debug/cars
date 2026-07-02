@@ -1,0 +1,29 @@
+{
+  "name": "car-dealer-monitor",
+  "version": "1.0.0",
+  "description": "Monitor multiple car dealer websites for a watchlist of cars and deliver photo summaries with clickable links.",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "scan": "node src/cli.js scan",
+    "digest": "node src/cli.js digest",
+    "watchlist": "node src/cli.js watchlist",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0",
+    "express": "^4.19.2"
+  },
+  "keywords": [
+    "cars",
+    "dealer",
+    "monitor",
+    "scraper",
+    "watchlist"
+  ],
+  "license": "MIT"
+}
