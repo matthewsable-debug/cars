@@ -3,6 +3,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { dealers as seedDealers } from "../config/dealers.js";
 import { DATA_DIR } from "../config/paths.js";
+import * as durable from "./durable.js";
 
 const DEALERS_FILE = path.join(DATA_DIR, "dealers.json");
 
@@ -54,6 +55,7 @@ export function loadDealers() {
 export function saveDealers(dealers) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   fs.writeFileSync(DEALERS_FILE, JSON.stringify({ dealers }, null, 2));
+  durable.put("dealers", { dealers });
 }
 
 export function listDealers() {

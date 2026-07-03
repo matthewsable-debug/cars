@@ -5,6 +5,12 @@
 #
 # IMPORTANT: auto_stop_machines is off so the machine stays up and the daily
 # 7am email actually fires. A sleeping machine won't run the scheduler.
+#
+# For durability across redeploys, attach a managed Postgres and set its URL:
+#   fly postgres create --name car-monitor-db
+#   fly postgres attach car-monitor-db     # sets the DATABASE_URL secret
+# (The /data volume below also persists data; the database survives even if the
+# volume/machine is recreated.)
 app = "car-dealer-monitor"
 primary_region = "iad"
 

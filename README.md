@@ -221,6 +221,22 @@ below), or drive the digest from an external cron instead (`0 7 * * * npm run
 email`). State (dealers, watchlist, seen listings) lives under `DATA_DIR` — mount
 a persistent disk there so it survives restarts and redeploys.
 
+**Keeping data across redeploys:** your dealers, watchlist, and seen listings
+are stored as JSON files under `DATA_DIR`. On hosts with an ephemeral filesystem
+(many PaaS free tiers), those files are wiped on every deploy. Two ways to keep
+them:
+
+- **Persistent disk** — mount a volume at `DATA_DIR` (the Render/Fly/Compose
+  configs already do this). Simplest when your plan supports disks.
+- **Managed database** — set `DATABASE_URL` to a Postgres instance. The app
+  mirrors every save to the database (write-through) and, on boot, restores any
+  missing local file from it — so data survives redeploys on *any* host, even
+  ephemeral ones. It never overwrites a newer local file, so it's safe alongside
+  a persistent disk. With no `DATABASE_URL` set, this is completely inert (files
+  only). The `render.yaml` provisions and wires a database automatically;
+  `docker compose` includes a Postgres service; on Fly, run `fly postgres
+  create && fly postgres attach`.
+
 **Headless browser:** `browser`-type dealers need Chromium. The Docker image is
 based on the official Playwright image, so it's already included (this makes the
 image larger). Give the instance ~1 GB RAM — Chromium is memory-hungry (the
@@ -273,6 +289,8 @@ runs, `npm ci && npm start` works; set `DATA_DIR` to a writable, persistent path
 | --- | --- | --- |
 | `PORT` | `3000` | HTTP port |
 | `DATA_DIR` | `./data` | Where JSON databases + outbox are stored (mount a disk) |
+| `DATABASE_URL` | — | Optional Postgres for durable storage across redeploys |
+| `DATABASE_SSL` | — | Set `false` for a local/plain Postgres connection |
 | `SCAN_INTERVAL_MS` | `1800000` | Scan cadence (30 min) |
 | `MAIL_TO` | — | Digest recipient(s) |
 | `MAIL_FROM` | `Car Dealer Monitor <no-reply@localhost>` | From header |
@@ -299,6 +317,7 @@ src/
     listing.js       normalize + parse listings, stable ids
     matcher.js       match listings against the watchlist
     store.js         JSON persistence + new-listing detection
+    durable.js       optional Postgres write-through + boot restore (DATABASE_URL)
     dealerStore.js   dealer database (CRUD, validation, seeding)
     watchlistStore.js watchlist database (CRUD, validation, seeding)
     monitor.js       one scan cycle + scheduler

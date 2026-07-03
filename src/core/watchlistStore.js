@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import { watchlist as seedWatchlist } from "../config/watchlist.js";
 import { normalizeFeatures } from "./listing.js";
 import { DATA_DIR } from "../config/paths.js";
+import * as durable from "./durable.js";
 
 const WATCHLIST_FILE = path.join(DATA_DIR, "watchlist.json");
 
@@ -33,6 +34,7 @@ export function loadWatchlist() {
 export function saveWatchlist(entries) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   fs.writeFileSync(WATCHLIST_FILE, JSON.stringify({ entries }, null, 2));
+  durable.put("watchlist", { entries });
 }
 
 export function listEntries() {

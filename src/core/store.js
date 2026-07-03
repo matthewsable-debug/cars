@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { DATA_DIR } from "../config/paths.js";
+import * as durable from "./durable.js";
 
 const DB_FILE = path.join(DATA_DIR, "listings.json");
 
@@ -23,6 +24,7 @@ export function load() {
 export function save(db) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+  durable.put("listings", db);
 }
 
 // Merge a fresh set of matched listings into the store. Returns a summary that

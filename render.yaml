@@ -1,8 +1,13 @@
 # Render Blueprint — deploy with one click from the Render dashboard
 # (New → Blueprint → point at this repo). Gives you a public https URL.
 #
-# A persistent disk keeps your dealers/watchlist/listings across deploys.
-# Note: disks require a paid instance type (not the free tier).
+# Durability across redeploys is provided by a managed Postgres database
+# (below), so your dealers/watchlist/listings survive every deploy even without
+# a persistent disk. The disk is still mounted for fast local JSON storage.
+databases:
+  - name: car-monitor-db
+    plan: basic-256mb
+
 services:
   - type: web
     name: car-dealer-monitor
@@ -13,6 +18,11 @@ services:
     healthCheckPath: /healthz
     autoDeploy: true
     envVars:
+      # Durable storage — survives redeploys. Wired automatically from the DB above.
+      - key: DATABASE_URL
+        fromDatabase:
+          name: car-monitor-db
+          property: connectionString
       - key: DATA_DIR
         value: /data
       - key: MAIL_TZ

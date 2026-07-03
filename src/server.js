@@ -24,6 +24,7 @@ import {
 import { sendDailyEmail, startEmailScheduler, stopEmailScheduler, nextDailyRun } from "./core/emailer.js";
 import { mailConfig, isMailConfigured } from "./config/notifications.js";
 import { getLastEmailAt } from "./core/store.js";
+import * as durable from "./core/durable.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -217,6 +218,10 @@ app.get("/api/digest", (_req, res) => {
   res.type("html").send(renderDigest({ ...result, matches: matched }));
 });
 
+// Restore data from the database (if DATABASE_URL is set) before serving, so a
+// fresh deploy comes up with the previously saved dealers/watchlist/listings.
+await durable.init();
+
 app.listen(PORT, () => {
   console.log(`\n🚗 Car Dealer Monitor running at http://localhost:${PORT}`);
   console.log(`   Dashboard:  http://localhost:${PORT}/`);
@@ -249,9 +254,15 @@ app.listen(PORT, () => {
   console.log(`   Next email:  ${next.toISOString()}\n`);
 });
 
-function shutdown() {
+async function shutdown() {
   stopScheduler();
   stopEmailScheduler();
+  try {
+    await durable.flush();
+    await durable.close();
+  } catch {
+    /* best effort */
+  }
   process.exit(0);
 }
 process.on("SIGINT", shutdown);

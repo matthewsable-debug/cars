@@ -24,9 +24,25 @@ services:
       - SMTP_PASS=${SMTP_PASS:-}
       - MAIL_HOUR=${MAIL_HOUR:-7}
       - MAIL_TZ=${MAIL_TZ:-America/New_York}
+      # Durable storage in the bundled Postgres below (survives redeploys/rebuilds).
+      - DATABASE_URL=postgres://cars:cars@db:5432/cars
+      - DATABASE_SSL=false
+    depends_on:
+      - db
     volumes:
       # Named volume keeps your dealers/watchlist/listings across restarts.
       - car-monitor-data:/data
 
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=cars
+      - POSTGRES_PASSWORD=cars
+      - POSTGRES_DB=cars
+    volumes:
+      - car-monitor-db:/var/lib/postgresql/data
+
 volumes:
   car-monitor-data:
+  car-monitor-db:

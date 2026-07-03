@@ -7,17 +7,16 @@ import { listEntries } from "./core/watchlistStore.js";
 import { sendDailyEmail } from "./core/emailer.js";
 import { entryLabel } from "./core/matcher.js";
 import { DATA_DIR } from "./config/paths.js";
-
-// Read dealers and the watchlist from their persisted databases (seeded from
-// config on first run), so the CLI and the web UI operate on the same data.
-const dealers = listDealers();
-const watchlist = listEntries();
+import * as durable from "./core/durable.js";
 
 const cmd = process.argv[2] || "scan";
 
 const money = (n) => (n != null ? "$" + n.toLocaleString() : "n/a");
 
 async function main() {
+  // Restore from the database (if DATABASE_URL is set) before reading the
+  // stores, so the CLI operates on the same data as a deployed server.
+  await durable.init();
   switch (cmd) {
     case "scan":
       return doScan();
@@ -52,8 +51,9 @@ async function doEmail() {
 }
 
 async function doScan() {
+  const dealers = listDealers();
   console.log(`Scanning ${dealers.filter((d) => d.enabled !== false).length} dealer(s)…\n`);
-  const result = await runScan({ dealers, watchlist });
+  const result = await runScan();
 
   for (const d of result.dealers) {
     const status = d.error ? `ERROR: ${d.error}` : `${d.scanned} vehicles`;
@@ -79,7 +79,7 @@ async function doScan() {
 }
 
 async function doDigest() {
-  const result = await runScan({ dealers, watchlist });
+  const result = await runScan();
   const html = renderDigest(result);
   const out = path.join(DATA_DIR, "digest.html");
   fs.mkdirSync(path.dirname(out), { recursive: true });
@@ -90,7 +90,7 @@ async function doDigest() {
 
 function showWatchlist() {
   console.log("Watchlist:\n");
-  for (const e of watchlist) {
+  for (const e of listEntries()) {
     const crit = [];
     if (e.yearMin || e.yearMax) crit.push(`year ${e.yearMin ?? "*"}–${e.yearMax ?? "*"}`);
     if (e.priceMax) crit.push(`≤ ${money(e.priceMax)}`);
@@ -101,7 +101,14 @@ function showWatchlist() {
   }
 }
 
-main().catch((err) => {
-  console.error("Error:", err.message);
-  process.exit(1);
-});
+main()
+  .then(async () => {
+    // Ensure any write-through to the database completes before we exit.
+    await durable.flush();
+    await durable.close();
+  })
+  .catch(async (err) => {
+    console.error("Error:", err.message);
+    await durable.close().catch(() => {});
+    process.exit(1);
+  });

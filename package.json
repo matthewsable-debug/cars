@@ -19,6 +19,7 @@
     "cheerio": "^1.0.0",
     "express": "^4.19.2",
     "nodemailer": "^6.10.1",
+    "pg": "^8.22.0",
     "playwright": "~1.56.0"
   },
   "keywords": [
@@ -28,5 +29,8 @@
     "scraper",
     "watchlist"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "pg-mem": "^3.0.14"
+  }
 }
