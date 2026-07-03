@@ -40,9 +40,10 @@ export const dealers = [
     id: "copley-west",
     name: "Copley West",
     type: "html",
-    enabled: true,
-    // Main website — the inventory page is auto-discovered. Selectors default to
-    // the generic set; refine them on the Dealers page if a scan finds nothing.
+    // Paused: copleywest.com sits behind bot protection and returns 403 to
+    // non-browser requests, so the static scraper can't reach it. Re-enable once
+    // a headless-browser scraper is added. Inventory lives at /showroom/.
+    enabled: false,
     url: "https://www.copleywest.com/",
   },
 
