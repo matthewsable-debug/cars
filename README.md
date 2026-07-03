@@ -92,10 +92,11 @@ The easiest way to add and manage dealers is the built-in **Dealers** page at
 there you can:
 
 - **Submit a dealer website** — just paste the dealer's **main website URL**. The
-  app **automatically discovers the inventory page** deeper in the site (looking
-  for used-cars / inventory / pre-owned sections and verifying they list
-  vehicles), then caches it. Sensible extraction selectors are applied by default;
-  expand **Advanced** to customize them.
+  app **automatically discovers the inventory page** deeper in the site and
+  **auto-detects the vehicles** on it — no CSS selectors needed. Detection uses
+  schema.org structured data (which most dealer platforms embed) with a
+  price/year/detail-link DOM heuristic as a fallback. Expand **Advanced** only if
+  a specific site needs hand-tuned selectors.
 - **Pick how to fetch** — *Website (fast)* uses plain HTTP for normal
   server-rendered sites; *Website (headless browser)* renders pages in real
   Chromium for sites that use JavaScript or block scrapers with bot protection
@@ -117,9 +118,9 @@ next **Scan now**).
 ## Configure dealers (in code)
 
 You can also edit `src/config/dealers.js` (used to seed the database). To monitor
-a real dealer, add an `html` dealer with its **main website URL** — the inventory
-page is discovered automatically. Selectors are optional (defaults are applied);
-override them when a site's markup needs it:
+a real dealer, add an `html` (or `browser`) dealer with its **main website URL** —
+the inventory page is discovered and vehicles are auto-detected. Selectors are
+optional; add them only to override auto-detection for a specific site:
 
 ```js
 {
@@ -309,6 +310,7 @@ src/
   scrapers/
     index.js         adapter registry + orchestration (discovery, sold-filter)
     discovery.js     auto-find the inventory page from a dealer's main URL
+    autoExtract.js   selector-free vehicle detection (schema.org + DOM heuristic)
     http.js          fetch wrapper (UA, timeout, retry)
     htmlScraper.js   config-driven CSS-selector scraper (+ sold detection)
     browserScraper.js headless Chromium (Playwright) for JS / bot-protected sites

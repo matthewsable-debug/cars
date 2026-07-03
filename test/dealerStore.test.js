@@ -29,12 +29,20 @@ test("addDealer validates required fields", () => {
   assert.match(store.addDealer({ name: "X", type: "bogus" }).error, /Type must be/);
 });
 
-test("addDealer creates a dealer with a slug id and default selectors", () => {
+test("addDealer creates a dealer with a slug id and no selectors (auto-extract)", () => {
   const { dealer } = store.addDealer({ name: "Downtown Toyota", type: "html", url: "https://d.com/inv" });
   assert.equal(dealer.id, "downtown-toyota");
   assert.equal(dealer.enabled, true);
-  assert.ok(dealer.selectors && dealer.selectors.card, "default selectors applied");
+  assert.ok(!dealer.selectors, "no selectors → selector-free auto-extraction");
   assert.equal(store.getDealer("downtown-toyota").name, "Downtown Toyota");
+});
+
+test("addDealer keeps custom selectors when provided", () => {
+  const { dealer } = store.addDealer({
+    name: "Custom Lot", type: "html", url: "https://c.com",
+    selectors: { card: ".v", title: { sel: ".t" } },
+  });
+  assert.equal(dealer.selectors.card, ".v");
 });
 
 test("duplicate names get unique ids", () => {

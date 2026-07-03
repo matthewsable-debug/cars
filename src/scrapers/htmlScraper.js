@@ -1,15 +1,15 @@
 import * as cheerio from "cheerio";
 import { fetchText } from "./http.js";
+import { autoExtractListings } from "./autoExtract.js";
 
-// Generic, config-driven scraper for server-rendered dealer inventory pages.
-// Reads the `selectors` block from a dealer config and extracts one raw listing
-// per matched card. Resolves relative image/link URLs against the page URL.
+// Config-driven scraper for dealer inventory pages. When the dealer provides a
+// `selectors.card`, it extracts one raw listing per matched card. Otherwise it
+// falls back to selector-free auto-extraction (schema.org data + a DOM
+// heuristic), which generalizes across dealer sites without per-site tuning.
 
 export async function scrapeHtmlDealer(dealer, { fetchImpl = fetchText } = {}) {
   const selectors = dealer.selectors || {};
-  if (!selectors.card) {
-    throw new Error(`Dealer ${dealer.id} is missing selectors.card`);
-  }
+  const useAuto = !selectors.card;
 
   const pages = buildPageUrls(dealer);
   const results = [];
@@ -22,6 +22,10 @@ export async function scrapeHtmlDealer(dealer, { fetchImpl = fetchText } = {}) {
       // Surface the failure but keep going with any pages that did load.
       err.pageUrl = pageUrl;
       throw err;
+    }
+    if (useAuto) {
+      results.push(...autoExtractListings(html, pageUrl));
+      continue;
     }
     const $ = cheerio.load(html);
     $(selectors.card).each((_, el) => {

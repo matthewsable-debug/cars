@@ -2,6 +2,7 @@ import { scrapeDemoDealer } from "./demoScraper.js";
 import { scrapeHtmlDealer } from "./htmlScraper.js";
 import { discoverInventoryUrl } from "./discovery.js";
 import { renderPage, closeBrowser } from "./browserScraper.js";
+import { countListings } from "./autoExtract.js";
 import { normalizeListing } from "../core/listing.js";
 
 // Adapter registry. Add your own by registering a function keyed by dealer type.
@@ -47,6 +48,8 @@ export async function scrapeDealer(dealer, { fetchImpl } = {}) {
       const disc = await discoverInventoryUrl(dealer.url, {
         fetchImpl: resolvedFetch,
         cardSelector: dealer.selectors?.card,
+        // When there's no card selector, verify pages via auto-detection.
+        countListings: dealer.selectors?.card ? undefined : countListings,
       });
       discoveredInventoryUrl = disc.url;
       working = { ...dealer, inventoryUrl: disc.url };

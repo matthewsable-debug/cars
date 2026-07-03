@@ -16,20 +16,6 @@ const VALID_TYPES = ["html", "browser", "demo"];
 // Types that fetch a live website and therefore need a URL + selectors.
 const WEB_TYPES = ["html", "browser"];
 
-// Applied to HTML dealers when the submitter doesn't provide their own. These
-// generic selectors match a lot of server-rendered inventory pages and give a
-// newly submitted dealer a fighting chance; the "test" endpoint reveals whether
-// they actually work so they can be refined.
-export const DEFAULT_SELECTORS = {
-  card: ".inventory-card, .vehicle-card, li.vehicle, article.vehicle",
-  title: { sel: ".vehicle-title, h2 a, h3 a, .title" },
-  price: { sel: ".price, .vehicle-price, [class*=price]" },
-  mileage: { sel: ".mileage, .odometer, [class*=mileage]" },
-  year: { sel: ".vehicle-title, h2 a, h3 a, .title", regex: "(19|20)\\d{2}" },
-  link: { sel: "a", attr: "href" },
-  image: { sel: "img", attr: "src" },
-};
-
 export function loadDealers() {
   try {
     const raw = fs.readFileSync(DEALERS_FILE, "utf8");
@@ -38,16 +24,10 @@ export function loadDealers() {
   } catch {
     // fall through to seed
   }
-  // First run: seed from the static config and persist. HTML dealers that don't
-  // specify a card selector get the generic defaults, so a seed dealer can be
-  // just a name + main URL.
-  const seeded = seedDealers.map((d) => {
-    const dealer = { ...d, createdAt: new Date().toISOString() };
-    if (WEB_TYPES.includes(dealer.type) && !(dealer.selectors && dealer.selectors.card)) {
-      dealer.selectors = { ...DEFAULT_SELECTORS };
-    }
-    return dealer;
-  });
+  // First run: seed from the static config and persist. Web dealers with no card
+  // selector use selector-free auto-extraction, so a seed dealer can be just a
+  // name + main URL.
+  const seeded = seedDealers.map((d) => ({ ...d, createdAt: new Date().toISOString() }));
   saveDealers(seeded);
   return seeded;
 }
@@ -125,8 +105,8 @@ export function addDealer(input) {
   };
   if (WEB_TYPES.includes(value.type)) {
     dealer.url = value.url;
-    dealer.selectors =
-      value.selectors && value.selectors.card ? value.selectors : { ...DEFAULT_SELECTORS };
+    // Custom selectors are optional; without a card selector we auto-extract.
+    if (value.selectors && value.selectors.card) dealer.selectors = value.selectors;
     if (value.pagination) dealer.pagination = value.pagination;
   }
   if (value.type === "demo") {

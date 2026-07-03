@@ -13,7 +13,7 @@ import {
   getDealer,
 } from "./core/dealerStore.js";
 import { scrapeDealer } from "./scrapers/index.js";
-import { validateDealerInput, DEFAULT_SELECTORS } from "./core/dealerStore.js";
+import { validateDealerInput } from "./core/dealerStore.js";
 import {
   listEntries,
   getEntry,
@@ -130,10 +130,6 @@ app.post("/api/dealers/test", async (req, res) => {
     const { value, error } = validateDealerInput(dealer);
     if (error) return res.status(400).json({ error });
     dealer = { id: "__test__", name: value.name || "Test", ...value };
-    if (dealer.type === "html" && !(dealer.selectors && dealer.selectors.card)) {
-      // Apply the same generic defaults a saved dealer would get.
-      dealer.selectors = { ...DEFAULT_SELECTORS };
-    }
   }
   try {
     const result = await scrapeDealer(dealer);

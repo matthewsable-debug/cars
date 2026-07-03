@@ -28,7 +28,7 @@
       <!-- Submit / edit form -->
       <form class="panel" id="dealerForm" autocomplete="off">
         <h2 id="formTitle">Add a dealer</h2>
-        <p class="hint">Just paste the dealer's main website URL — the app automatically finds the inventory page deeper in the site. Selectors are optional (sensible defaults apply), and you can test before saving.</p>
+        <p class="hint">Just paste the dealer's main website URL. The app finds the inventory page and auto-detects the vehicles on it — no selectors needed. Use “Test scrape” to check before saving.</p>
 
         <input type="hidden" id="editId" value="">
 
@@ -53,8 +53,8 @@
         </div>
 
         <details class="advanced" id="advanced">
-          <summary>Advanced: extraction selectors</summary>
-          <div class="sub" style="margin:8px 0">CSS selectors used to read each vehicle card. Leave blank to use defaults.</div>
+          <summary>Advanced: extraction selectors (optional)</summary>
+          <div class="sub" style="margin:8px 0">Leave blank — the app auto-detects vehicles from the page. Only fill these in if a specific site isn't detected correctly.</div>
           <div class="field"><label for="s_card">Card selector</label><input type="text" id="s_card" placeholder=".vehicle-card"></div>
           <div class="row2">
             <div class="field"><label for="s_title">Title</label><input type="text" id="s_title" placeholder=".vehicle-title"></div>

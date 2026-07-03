@@ -46,7 +46,8 @@ export const dealers = [
     id: "copley-west",
     name: "Copley West",
     // copleywest.com is JavaScript-rendered and behind bot protection, so it
-    // needs the headless-browser scraper. Inventory lives at /showroom/.
+    // needs the headless-browser scraper. No selectors: vehicles are
+    // auto-detected. Inventory lives at /showroom/.
     type: "browser",
     enabled: true,
     url: "https://www.copleywest.com/",

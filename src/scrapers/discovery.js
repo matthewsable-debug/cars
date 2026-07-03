@@ -16,9 +16,26 @@ const STRONG = [
 ];
 const MEDIUM = ["used", "vehicles", "showroom", "browse", "listings", "stock", "search", "shop"];
 
-export async function discoverInventoryUrl(homeUrl, { fetchImpl = fetchText, cardSelector } = {}) {
+export async function discoverInventoryUrl(
+  homeUrl,
+  { fetchImpl = fetchText, cardSelector, countListings } = {}
+) {
   const home = safeUrl(homeUrl);
   if (!home) return { url: homeUrl, candidates: [], error: "Invalid URL" };
+
+  // How many listings a page contains: by the dealer's card selector if given,
+  // otherwise by selector-free auto-detection (schema.org + DOM heuristic).
+  const listingCount = (html, url) => {
+    if (cardSelector) {
+      try {
+        return cheerio.load(html)(cardSelector).length;
+      } catch {
+        return 0;
+      }
+    }
+    return countListings ? countListings(html, url) : 0;
+  };
+  const canVerify = !!cardSelector || !!countListings;
 
   let html;
   try {
@@ -29,7 +46,7 @@ export async function discoverInventoryUrl(homeUrl, { fetchImpl = fetchText, car
   const $ = cheerio.load(html);
 
   // 1. Homepage is already an inventory page?
-  if (cardSelector && countCards($, cardSelector) >= 2) {
+  if (canVerify && listingCount(html, home) >= 2) {
     return { url: home, candidates: [{ url: home, score: 999 }], verified: true, fromHome: true };
   }
 
@@ -49,12 +66,12 @@ export async function discoverInventoryUrl(homeUrl, { fetchImpl = fetchText, car
   });
   scored.sort((a, b) => b.score - a.score);
 
-  // 3. Verify the strongest candidates really contain vehicle cards.
-  if (cardSelector) {
+  // 3. Verify the strongest candidates really contain vehicle listings.
+  if (canVerify) {
     for (const c of scored.slice(0, 4)) {
       try {
         const cHtml = await fetchImpl(c.url);
-        if (countCards(cheerio.load(cHtml), cardSelector) >= 2) {
+        if (listingCount(cHtml, c.url) >= 2) {
           return { url: c.url, candidates: scored, verified: true };
         }
       } catch {
@@ -87,13 +104,6 @@ function scoreLink(url, text) {
   return s;
 }
 
-function countCards($, selector) {
-  try {
-    return $(selector).length;
-  } catch {
-    return 0;
-  }
-}
 
 function safeUrl(u) {
   try {
