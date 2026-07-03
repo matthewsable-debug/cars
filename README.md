@@ -198,6 +198,70 @@ in `data/listings.json`, so it works the same way:
 (SendGrid, SES, Postmark). `GET /api/digest` returns the same HTML from the
 running server.
 
+## Deployment
+
+To use the platform for real — a public URL and the 7am email firing on its own
+— it needs to run somewhere always-on. The repo ships ready-to-use configs.
+
+**Important:** the daily-email scheduler runs in-process, so the host must stay
+awake. Disable any "scale to zero" / "auto-sleep" behavior (noted in each config
+below), or drive the digest from an external cron instead (`0 7 * * * npm run
+email`). State (dealers, watchlist, seen listings) lives under `DATA_DIR` — mount
+a persistent disk there so it survives restarts and redeploys.
+
+### Docker (self-host on any VPS)
+
+```bash
+cp .env.example .env      # add MAIL_TO + SMTP_* (optional; blank = dry-run)
+docker compose up -d --build
+# open http://<your-host>:3000
+```
+
+The `docker-compose.yml` mounts a named volume at `/data`, restarts on failure,
+and reads email settings from `.env`. To build/run the image directly:
+
+```bash
+docker build -t car-dealer-monitor .
+docker run -d -p 3000:3000 -v car-data:/data --env-file .env car-dealer-monitor
+```
+
+### Render (one-click)
+
+`render.yaml` is a Blueprint. In the Render dashboard: **New → Blueprint** →
+select this repo. It provisions a web service (health-checked at `/healthz`) with
+a 1 GB persistent disk mounted at `/data`. Set the secret env vars (`MAIL_TO`,
+`SMTP_*`) in the dashboard. (Persistent disks require a paid instance type.)
+
+### Fly.io
+
+```bash
+fly launch --copy-config --now
+fly secrets set MAIL_TO=you@example.com SMTP_HOST=... SMTP_USER=... SMTP_PASS=...
+fly deploy
+```
+
+`fly.toml` mounts a volume at `/data`, health-checks `/healthz`, and keeps
+`min_machines_running = 1` with `auto_stop_machines = false` so the 7am email
+fires.
+
+### Any Node host (Railway, Heroku-style, bare metal)
+
+A `Procfile` (`web: npm start`) covers buildpack platforms. Anywhere Node 20+
+runs, `npm ci && npm start` works; set `DATA_DIR` to a writable, persistent path.
+
+### Configuration reference
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `PORT` | `3000` | HTTP port |
+| `DATA_DIR` | `./data` | Where JSON databases + outbox are stored (mount a disk) |
+| `SCAN_INTERVAL_MS` | `1800000` | Scan cadence (30 min) |
+| `MAIL_TO` | — | Digest recipient(s) |
+| `MAIL_FROM` | `Car Dealer Monitor <no-reply@localhost>` | From header |
+| `SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/`SMTP_PASS`/`SMTP_SECURE` | — | SMTP delivery (blank host = dry-run) |
+| `MAIL_HOUR` / `MAIL_TZ` | `7` / `America/New_York` | Daily send time |
+| `MAIL_SEND_EMPTY` | `false` | Email even with no new matches |
+
 ## Architecture
 
 ```
@@ -234,6 +298,7 @@ test/                unit tests
 
 | Endpoint                 | Description                                        |
 | ------------------------ | -------------------------------------------------- |
+| `GET /healthz`           | Health check for load balancers / platform probes  |
 | `GET /api/listings`      | Current matched, active listings (+ metadata)      |
 | `GET /api/status`        | Last scan time, counts, recent scan history        |
 | `GET /api/watchlist`     | List all watchlist searches                        |

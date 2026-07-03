@@ -1,19 +1,18 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { runScan } from "./core/monitor.js";
 import { renderDigest } from "./summary.js";
 import { listDealers } from "./core/dealerStore.js";
 import { listEntries } from "./core/watchlistStore.js";
 import { sendDailyEmail } from "./core/emailer.js";
 import { entryLabel } from "./core/matcher.js";
+import { DATA_DIR } from "./config/paths.js";
 
 // Read dealers and the watchlist from their persisted databases (seeded from
 // config on first run), so the CLI and the web UI operate on the same data.
 const dealers = listDealers();
 const watchlist = listEntries();
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const cmd = process.argv[2] || "scan";
 
 const money = (n) => (n != null ? "$" + n.toLocaleString() : "n/a");
@@ -82,7 +81,7 @@ async function doScan() {
 async function doDigest() {
   const result = await runScan({ dealers, watchlist });
   const html = renderDigest(result);
-  const out = path.join(__dirname, "..", "data", "digest.html");
+  const out = path.join(DATA_DIR, "digest.html");
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(out, html);
   console.log(`Digest written to ${out}`);

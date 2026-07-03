@@ -1,0 +1,32 @@
+# Self-host on any Docker host (a small VPS is plenty).
+#   1. cp .env.example .env   and fill in your SMTP + MAIL_TO
+#   2. docker compose up -d --build
+#   3. open http://<host>:3000
+services:
+  car-monitor:
+    build: .
+    image: car-dealer-monitor
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - DATA_DIR=/data
+      # Scan cadence (ms). Default 30 min.
+      - SCAN_INTERVAL_MS=${SCAN_INTERVAL_MS:-1800000}
+      # Daily email (optional — omit SMTP_HOST to run in dry-run mode).
+      - MAIL_TO=${MAIL_TO:-}
+      - MAIL_FROM=${MAIL_FROM:-Car Dealer Monitor <no-reply@localhost>}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_SECURE=${SMTP_SECURE:-false}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - MAIL_HOUR=${MAIL_HOUR:-7}
+      - MAIL_TZ=${MAIL_TZ:-America/New_York}
+    volumes:
+      # Named volume keeps your dealers/watchlist/listings across restarts.
+      - car-monitor-data:/data
+
+volumes:
+  car-monitor-data:

@@ -1,11 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import { fileURLToPath } from "node:url";
 import { dealers as seedDealers } from "../config/dealers.js";
+import { DATA_DIR } from "../config/paths.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.join(__dirname, "..", "..", "data");
 const DEALERS_FILE = path.join(DATA_DIR, "dealers.json");
 
 // Persisted database of dealers the platform monitors. On first use it seeds

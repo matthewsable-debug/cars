@@ -1,0 +1,40 @@
+# Render Blueprint — deploy with one click from the Render dashboard
+# (New → Blueprint → point at this repo). Gives you a public https URL.
+#
+# A persistent disk keeps your dealers/watchlist/listings across deploys.
+# Note: disks require a paid instance type (not the free tier).
+services:
+  - type: web
+    name: car-dealer-monitor
+    runtime: node
+    plan: starter
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: DATA_DIR
+        value: /data
+      - key: MAIL_TZ
+        value: America/New_York
+      - key: MAIL_HOUR
+        value: "7"
+      - key: SCAN_INTERVAL_MS
+        value: "1800000"
+      # Secrets — set these in the Render dashboard (sync:false keeps them out of git).
+      - key: MAIL_TO
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1

@@ -1,9 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { DATA_DIR } from "../config/paths.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.join(__dirname, "..", "..", "data");
 const DB_FILE = path.join(DATA_DIR, "listings.json");
 
 // A tiny JSON-file store. It keeps the union of every matched listing we've ever

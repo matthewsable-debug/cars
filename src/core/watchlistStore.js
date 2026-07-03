@@ -1,12 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import { fileURLToPath } from "node:url";
 import { watchlist as seedWatchlist } from "../config/watchlist.js";
 import { normalizeFeatures } from "./listing.js";
+import { DATA_DIR } from "../config/paths.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.join(__dirname, "..", "..", "data");
 const WATCHLIST_FILE = path.join(DATA_DIR, "watchlist.json");
 
 // Persisted database of watchlist entries — the specific cars the user wants to

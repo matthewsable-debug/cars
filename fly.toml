@@ -1,0 +1,41 @@
+# Fly.io config. Deploy with:
+#   fly launch --copy-config --now        (first time; creates the app + volume)
+#   fly secrets set MAIL_TO=you@example.com SMTP_HOST=... SMTP_USER=... SMTP_PASS=...
+#   fly deploy
+#
+# IMPORTANT: auto_stop_machines is off so the machine stays up and the daily
+# 7am email actually fires. A sleeping machine won't run the scheduler.
+app = "car-dealer-monitor"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "3000"
+  DATA_DIR = "/data"
+  MAIL_TZ = "America/New_York"
+  MAIL_HOUR = "7"
+  SCAN_INTERVAL_MS = "1800000"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/healthz"
+
+[[mounts]]
+  source = "car_monitor_data"
+  destination = "/data"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

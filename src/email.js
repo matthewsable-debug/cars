@@ -1,11 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import nodemailer from "nodemailer";
 import { mailConfig } from "./config/notifications.js";
+import { DATA_DIR } from "./config/paths.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const OUTBOX = path.join(__dirname, "..", "data", "outbox");
+const OUTBOX = path.join(DATA_DIR, "outbox");
 
 // Send an email. If SMTP is configured (SMTP_HOST set), it's delivered for real;
 // otherwise the message is written to data/outbox/ as a dry run so the whole

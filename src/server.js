@@ -38,6 +38,9 @@ let lastResult = null;
 
 // --- API -------------------------------------------------------------------
 
+// Health check for load balancers / platform probes.
+app.get("/healthz", (_req, res) => res.json({ ok: true, uptime: process.uptime() }));
+
 // Current matched & active listings (from persisted store), with metadata.
 app.get("/api/listings", (req, res) => {
   const db = load();
