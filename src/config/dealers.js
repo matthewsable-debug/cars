@@ -36,6 +36,16 @@ export const dealers = [
     inventorySize: 30,
   },
 
+  {
+    id: "copley-west",
+    name: "Copley West",
+    type: "html",
+    enabled: true,
+    // Main website — the inventory page is auto-discovered. Selectors default to
+    // the generic set; refine them on the Dealers page if a scan finds nothing.
+    url: "https://www.copleywest.com/",
+  },
+
   // ---- Example real-dealer configuration (disabled by default) --------------
   // Enable and adapt the selectors to a real inventory page to go live.
   {

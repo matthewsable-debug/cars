@@ -35,8 +35,16 @@ export function loadDealers() {
   } catch {
     // fall through to seed
   }
-  // First run: seed from the static config and persist.
-  const seeded = seedDealers.map((d) => ({ ...d, createdAt: new Date().toISOString() }));
+  // First run: seed from the static config and persist. HTML dealers that don't
+  // specify a card selector get the generic defaults, so a seed dealer can be
+  // just a name + main URL.
+  const seeded = seedDealers.map((d) => {
+    const dealer = { ...d, createdAt: new Date().toISOString() };
+    if (dealer.type === "html" && !(dealer.selectors && dealer.selectors.card)) {
+      dealer.selectors = { ...DEFAULT_SELECTORS };
+    }
+    return dealer;
+  });
   saveDealers(seeded);
   return seeded;
 }

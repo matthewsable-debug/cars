@@ -15,7 +15,18 @@ let backups = {};
 beforeEach(() => {
   fs.mkdirSync(DATA, { recursive: true });
   for (const f of files) backups[f] = fs.existsSync(f) ? fs.readFileSync(f, "utf8") : null;
-  for (const f of files) fs.rmSync(f, { force: true });
+  // Seed controlled, network-free data so this test is hermetic (a demo dealer
+  // and a broad watchlist), rather than the default seed which includes a live
+  // dealer website.
+  fs.writeFileSync(
+    path.join(DATA, "dealers.json"),
+    JSON.stringify({ dealers: [{ id: "demo", name: "Demo Lot", type: "demo", inventorySize: 40 }] })
+  );
+  fs.writeFileSync(
+    path.join(DATA, "watchlist.json"),
+    JSON.stringify({ entries: [{ id: "toyota", label: "Toyota", make: "Toyota" }] })
+  );
+  fs.rmSync(path.join(DATA, "listings.json"), { force: true });
   // No SMTP configured → dry-run mode.
   delete process.env.SMTP_HOST;
 });
