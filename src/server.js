@@ -168,6 +168,7 @@ app.post("/api/scan", async (_req, res) => {
       totalMatched: lastResult.totalMatched,
       newCount: lastResult.newCount,
       durationMs: lastResult.durationMs,
+      dealers: lastResult.dealers, // per-dealer scanned counts + any errors
     });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });

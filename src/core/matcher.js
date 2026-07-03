@@ -6,7 +6,11 @@
 // { model: "3 Series" } matches a listing titled "BMW 330i 3 Series".
 
 export function matchesEntry(listing, entry) {
-  if (entry.make && !eq(listing.make, entry.make)) return false;
+  // Make matches the make field OR the title, so listings whose make field is
+  // blank/oddly formatted (common in JSON feeds) still match when the title
+  // names the marque, e.g. "1973 Porsche 911".
+  if (entry.make && !eq(listing.make, entry.make) &&
+      !includes(listing.title, entry.make)) return false;
   if (entry.model && !includes(listing.model, entry.model) &&
       !includes(listing.title, entry.model)) return false;
   if (entry.trim && !includes(listing.trim, entry.trim) &&

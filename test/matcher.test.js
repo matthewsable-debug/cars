@@ -48,6 +48,16 @@ test("trim can be matched from the title", () => {
   assert.ok(matchesEntry(listing, { make: "Honda", model: "Civic", trim: "Type R" }));
 });
 
+test("make matches via the title when the make field is blank/odd", () => {
+  // A JSON-feed listing with no make field, but the title names the marque.
+  const l = normalizeListing({ title: "1973 Porsche 911 Carrera RS", make: "", link: "http://x/p1" }, dealer);
+  assert.ok(matchesEntry(l, { make: "Porsche" }), "matched via title");
+  // And a differently-formatted make field still matches by title.
+  const l2 = normalizeListing({ title: "1973 Porsche 911", make: "Porsche AG", link: "http://x/p2" }, dealer);
+  assert.ok(matchesEntry(l2, { make: "Porsche" }));
+  assert.ok(!matchesEntry(l2, { make: "Ferrari" }));
+});
+
 test("color matches from the color field or the title", () => {
   const l1 = normalizeListing({ title: "2021 Toyota Tacoma", color: "Blue", link: "http://x/c1" }, dealer);
   assert.ok(matchesEntry(l1, { make: "Toyota", color: "blue" }));
