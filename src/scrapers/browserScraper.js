@@ -13,18 +13,28 @@ let browserPromise = null;
 
 async function getBrowser() {
   if (!browserPromise) {
-    browserPromise = chromium.launch({
-      headless: true,
-      // --no-sandbox is required when running as root in a container.
-      args: [
-        "--no-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-blink-features=AutomationControlled",
-      ],
-      ...(process.env.PLAYWRIGHT_EXECUTABLE_PATH
-        ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH }
-        : {}),
-    });
+    browserPromise = chromium
+      .launch({
+        headless: true,
+        // --no-sandbox is required when running as root in a container.
+        args: [
+          "--no-sandbox",
+          "--disable-dev-shm-usage",
+          "--disable-blink-features=AutomationControlled",
+        ],
+        ...(process.env.PLAYWRIGHT_EXECUTABLE_PATH
+          ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH }
+          : {}),
+      })
+      .catch((err) => {
+        // Don't cache a rejected promise — allow a later retry — and give a
+        // clear hint (Chromium missing on hosts that didn't install it).
+        browserPromise = null;
+        throw new Error(
+          `headless browser unavailable (${err.message.split("\n")[0]}). ` +
+            `On Render/Heroku native runtimes, deploy with the Docker image so Chromium is installed.`
+        );
+      });
   }
   return browserPromise;
 }

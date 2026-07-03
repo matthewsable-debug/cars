@@ -34,64 +34,98 @@ export async function scrapeDealer(dealer, { fetchImpl, jsonFetch } = {}) {
   if (!adapter) {
     return { dealer, listings: [], error: `No adapter for type "${dealer.type}"` };
   }
-  // `browser` dealers fetch through a real browser (unless a fetch impl is
-  // injected, e.g. in tests). Everything else defaults to plain HTTP.
-  const resolvedFetch =
-    fetchImpl ||
-    (dealer.type === "browser"
-      ? (url) => renderPage(url, { waitSelector: dealer.selectors?.card })
-      : undefined);
 
-  try {
-    let working = dealer;
-    let discoveredInventoryUrl = null;
-    if (WEB_TYPES.has(dealer.type) && !dealer.inventoryUrl && dealer.url) {
-      const disc = await discoverInventoryUrl(dealer.url, {
-        fetchImpl: resolvedFetch,
-        cardSelector: dealer.selectors?.card,
-        // When there's no card selector, verify pages via auto-detection.
-        countListings: dealer.selectors?.card ? undefined : countListings,
-      });
-      discoveredInventoryUrl = disc.url;
-      working = { ...dealer, inventoryUrl: disc.url };
+  // Non-web dealers (demo): just run the adapter.
+  if (!WEB_TYPES.has(dealer.type)) {
+    try {
+      const raw = await adapter(dealer, { fetchImpl });
+      return { dealer, listings: keep(raw, dealer), error: null };
+    } catch (err) {
+      return { dealer, listings: [], error: err.message || String(err) };
     }
+  }
 
-    // Prefer a JSON feed when one exists (e.g. Rails `/vehicles.json`) — it's far
-    // more reliable than scraping HTML. Only attempt in auto mode (no selectors).
-    if (WEB_TYPES.has(dealer.type) && !dealer.selectors?.card) {
-      const invUrl = working.inventoryUrl || working.url;
-      const candidates = jsonCandidates(invUrl);
-      if (candidates.length) {
-        const getJson =
-          jsonFetch ||
-          (dealer.type === "browser"
-            ? (urls) => browserFetchJson(invUrl, urls)
-            : (urls) => httpFetchJson(urls, resolvedFetch || fetchText));
-        let text = null;
-        try {
-          text = await getJson(candidates);
-        } catch {
-          /* fall back to HTML */
-        }
-        if (text) {
-          const items = extractListingsFromJson(text, invUrl);
-          if (items.length >= 2) {
-            const listings = items.map((r) => normalizeListing(r, dealer)).filter((l) => !l.sold);
-            return { dealer, listings, error: null, discoveredInventoryUrl, source: "json" };
-          }
+  // Web dealers: try PLAIN HTTP first (needs no browser — works anywhere,
+  // including hosts without Chromium), then fall back to a headless browser only
+  // for sites that block plain requests or render inventory with JavaScript.
+  const attempts = [];
+  if (fetchImpl || jsonFetch) {
+    attempts.push({ fetchFn: fetchImpl, jsonFetch }); // test / explicit injection
+  } else {
+    attempts.push({ fetchFn: fetchText }); // plain HTTP with browser-like headers
+    if (dealer.type === "browser") attempts.push({ browser: true }); // headless fallback
+  }
+
+  let last = { dealer, listings: [], error: null };
+  for (const attempt of attempts) {
+    try {
+      const res = await scrapeWeb(dealer, adapter, attempt);
+      if (res.listings.length > 0) return res; // success — stop here
+      last = res;
+    } catch (err) {
+      last = { dealer, listings: [], error: err.message || String(err) };
+    }
+  }
+  return last;
+}
+
+// Run discovery → JSON feed → HTML extraction for a web dealer using one fetch
+// strategy (plain HTTP or headless browser).
+async function scrapeWeb(dealer, adapter, { fetchFn, jsonFetch, browser }) {
+  const fetchImpl = browser
+    ? (url) => renderPage(url, { waitSelector: dealer.selectors?.card })
+    : fetchFn;
+
+  let working = dealer;
+  let discoveredInventoryUrl = null;
+  if (!dealer.inventoryUrl && dealer.url) {
+    const disc = await discoverInventoryUrl(dealer.url, {
+      fetchImpl,
+      cardSelector: dealer.selectors?.card,
+      countListings: dealer.selectors?.card ? undefined : countListings,
+    });
+    discoveredInventoryUrl = disc.url;
+    working = { ...dealer, inventoryUrl: disc.url };
+  }
+
+  // Prefer a JSON feed when one exists (e.g. Rails `/vehicles.json`).
+  if (!dealer.selectors?.card) {
+    const invUrl = working.inventoryUrl || working.url;
+    const candidates = jsonCandidates(invUrl);
+    if (candidates.length) {
+      const getJson =
+        jsonFetch ||
+        (browser
+          ? (urls) => browserFetchJson(invUrl, urls)
+          : (urls) => httpFetchJson(urls, fetchImpl || fetchText));
+      let text = null;
+      try {
+        text = await getJson(candidates);
+      } catch {
+        /* fall through to HTML */
+      }
+      if (text) {
+        const items = extractListingsFromJson(text, invUrl);
+        if (items.length >= 2) {
+          return {
+            dealer,
+            listings: items.map((r) => normalizeListing(r, dealer)).filter((l) => !l.sold),
+            error: null,
+            discoveredInventoryUrl,
+            source: "json",
+          };
         }
       }
     }
-
-    const raw = await adapter(working, { fetchImpl: resolvedFetch });
-    const listings = raw
-      .map((r) => normalizeListing(r, dealer))
-      .filter((l) => !l.sold); // exclude cars already sold / sale-pending
-
-    return { dealer, listings, error: null, discoveredInventoryUrl, source: "html" };
-  } catch (err) {
-    return { dealer, listings: [], error: err.message || String(err) };
   }
+
+  const raw = await adapter(working, { fetchImpl });
+  return { dealer, listings: keep(raw, dealer), error: null, discoveredInventoryUrl, source: "html" };
+}
+
+// Normalize raw listings and drop sold ones.
+function keep(raw, dealer) {
+  return raw.map((r) => normalizeListing(r, dealer)).filter((l) => !l.sold);
 }
 
 // Candidate JSON-feed URLs for an inventory page (Rails/most frameworks).
