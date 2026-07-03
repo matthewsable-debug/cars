@@ -141,6 +141,19 @@ export function updateDealer(id, patch) {
   return { dealer: updated };
 }
 
+// Persist an auto-discovered inventory URL on a dealer so we don't re-crawl the
+// homepage every scan. Bypasses validation (internal, not user-submitted).
+export function cacheInventoryUrl(id, inventoryUrl) {
+  if (!inventoryUrl) return { ok: false };
+  const dealers = loadDealers();
+  const idx = dealers.findIndex((d) => d.id === id);
+  if (idx === -1) return { ok: false };
+  if (dealers[idx].inventoryUrl === inventoryUrl) return { ok: true, unchanged: true };
+  dealers[idx] = { ...dealers[idx], inventoryUrl, inventoryDiscoveredAt: new Date().toISOString() };
+  saveDealers(dealers);
+  return { ok: true };
+}
+
 export function removeDealer(id) {
   const dealers = loadDealers();
   const next = dealers.filter((d) => d.id !== id);

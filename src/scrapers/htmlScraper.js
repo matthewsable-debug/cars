@@ -34,6 +34,7 @@ export async function scrapeHtmlDealer(dealer, { fetchImpl = fetchText } = {}) {
         link: absolutize(extract($, card, selectors.link), pageUrl),
         image: absolutize(extract($, card, selectors.image), pageUrl),
         location: extract($, card, selectors.location),
+        sold: isSold($, card, selectors),
       };
       if (raw.title || raw.link) results.push(raw);
     });
@@ -41,8 +42,24 @@ export async function scrapeHtmlDealer(dealer, { fetchImpl = fetchText } = {}) {
   return results;
 }
 
+// Detect a car that's already sold / sale-pending, either via a configured
+// `selectors.sold` element or a "sold"/"sale pending" marker in the card text.
+function isSold($, card, selectors) {
+  if (selectors.sold) {
+    const target = selectors.sold.sel ? card.find(selectors.sold.sel) : card;
+    if (target && target.length > 0) return true;
+  }
+  // Strip tags to spaces so adjacent elements (e.g. a "SOLD" badge glued to the
+  // title) don't merge into one word and defeat the boundary match.
+  const text = ($.html(card) || "").replace(/<[^>]+>/g, " ");
+  return /\b(sold|sale[\s-]?pending|no longer available)\b/i.test(text);
+}
+
 function buildPageUrls(dealer) {
-  const base = dealer.url;
+  // The inventory page is either explicitly cached (auto-discovered) or the
+  // dealer's URL. `dealer.url` is now the dealer's main website; discovery in
+  // scrapeDealer resolves and passes the deeper inventory URL via inventoryUrl.
+  const base = dealer.inventoryUrl || dealer.url;
   const pg = dealer.pagination;
   if (!pg || !pg.maxPages || pg.maxPages <= 1) return [base];
   const urls = [];

@@ -43,6 +43,8 @@ export async function scrapeDemoDealer(dealer) {
     const stock = `${dealer.id.slice(0, 3).toUpperCase()}${1000 + i}`;
     const [colorName, colorHex] = PAINT[Math.floor(rng() * PAINT.length)];
     const features = pickFeatures(rng);
+    // ~12% of inventory is already sold — these are excluded downstream.
+    const sold = rng() < 0.12;
 
     const title = `${year} ${make} ${model}${trim && trim !== "Base" ? " " + trim : ""}`;
     listings.push({
@@ -55,6 +57,7 @@ export async function scrapeDemoDealer(dealer) {
       mileage,
       color: colorName,
       features,
+      sold,
       link: `https://dealer.example/${dealer.id}/vehicle/${stock}`,
       image: carSvg(make, model, year, colorHex, SWATCHES[i % SWATCHES.length]),
       location: dealer.name,

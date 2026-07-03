@@ -28,6 +28,7 @@ export function normalizeListing(raw, dealer) {
   const mileage = toInt(raw.mileage);
   const color = clean(raw.color);
   const features = normalizeFeatures(raw.features);
+  const sold = raw.sold === true || /\bsold\b|sale[\s-]?pending/i.test(title);
 
   const idBasis = `${dealer.id}::${url || title}`;
   const id = crypto.createHash("sha1").update(idBasis).digest("hex").slice(0, 16);
@@ -44,6 +45,7 @@ export function normalizeListing(raw, dealer) {
     mileage,
     color,
     features,
+    sold,
     title,
     url,
     image: clean(raw.image) || "",

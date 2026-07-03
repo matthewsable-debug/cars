@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { scrapeHtmlDealer } from "../src/scrapers/htmlScraper.js";
 import { scrapeDemoDealer } from "../src/scrapers/demoScraper.js";
+import { scrapeDealer } from "../src/scrapers/index.js";
 
 test("html scraper extracts listings from markup with configured selectors", async () => {
   const html = `
@@ -46,6 +47,42 @@ test("html scraper extracts listings from markup with configured selectors", asy
   assert.equal(raw[0].image, "https://dealer.test/img/100.jpg");
   // absolute image URL preserved
   assert.equal(raw[1].image, "https://cdn.example/101.jpg");
+});
+
+test("html scraper flags sold / sale-pending cards", async () => {
+  const html = `
+    <ul>
+      <li class="vehicle"><a class="vehicle-link" href="/1"><h2 class="vehicle-title">2021 Toyota Tacoma</h2></a><span class="price">$38,500</span></li>
+      <li class="vehicle"><a class="vehicle-link" href="/2"><h2 class="vehicle-title">2020 Honda Civic</h2></a><span class="badge">SOLD</span><span class="price">$19,000</span></li>
+      <li class="vehicle"><a class="vehicle-link" href="/3"><h2 class="vehicle-title">2019 Mazda MX-5</h2></a><span class="status">Sale Pending</span></li>
+    </ul>`;
+  const dealer = {
+    id: "t", name: "T", type: "html", url: "https://dealer.test",
+    inventoryUrl: "https://dealer.test/inventory",
+    selectors: {
+      card: "li.vehicle",
+      title: { sel: ".vehicle-title" },
+      price: { sel: ".price" },
+      link: { sel: "a.vehicle-link", attr: "href" },
+    },
+  };
+  const raw = await scrapeHtmlDealer(dealer, { fetchImpl: async () => html });
+  assert.equal(raw[0].sold, false);
+  assert.equal(raw[1].sold, true, "SOLD badge");
+  assert.equal(raw[2].sold, true, "Sale Pending");
+
+  // Through the registry, sold cars are excluded from the results entirely.
+  const result = await scrapeDealer(dealer, { fetchImpl: async () => html });
+  assert.equal(result.listings.length, 1);
+  assert.equal(result.listings[0].make, "Toyota");
+});
+
+test("demo dealer excludes sold cars via the registry", async () => {
+  const dealer = { id: "demo-sold", name: "Demo", type: "demo", seedMakes: ["Toyota", "Honda"], inventorySize: 60 };
+  const result = await scrapeDealer(dealer);
+  assert.ok(result.listings.length > 0);
+  assert.ok(result.listings.length < 60, "some sold cars were filtered out");
+  assert.ok(result.listings.every((l) => !l.sold), "no sold cars remain");
 });
 
 test("demo scraper is deterministic and well-formed", async () => {

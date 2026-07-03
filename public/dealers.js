@@ -109,6 +109,7 @@ function dealerCard(d) {
     <div class="info">
       <div class="name">${esc(d.name)}</div>
       ${d.url ? `<div class="url">${esc(d.url)}</div>` : `<div class="url">Generated demo inventory</div>`}
+      ${d.inventoryUrl && d.inventoryUrl !== d.url ? `<div class="url">↳ inventory: ${esc(d.inventoryUrl)}</div>` : ""}
       <div class="tags">
         <span class="tag type">${esc(d.type)}</span>
         <span class="tag ${on ? "on" : "off"}">${on ? "enabled" : "disabled"}</span>
@@ -165,9 +166,10 @@ els.testBtn.addEventListener("click", async () => {
       body: JSON.stringify(payload),
     }).then((r) => r.json());
     if (data.error) { notify("Test failed: " + data.error, "err"); return; }
-    if (!data.count) { notify("Reached the page but found 0 vehicles — try adjusting selectors.", "err"); return; }
+    const found = data.inventoryUrl ? ` (inventory: ${data.inventoryUrl})` : "";
+    if (!data.count) { notify(`Reached the site${found} but found 0 available vehicles — try adjusting selectors.`, "err"); return; }
     const first = data.sample[0];
-    notify(`Found ${data.count} vehicle(s). First: ${first.title || "(untitled)"}${first.price ? " — $" + first.price.toLocaleString() : ""}.`, "ok");
+    notify(`Found ${data.count} available vehicle(s)${found}. First: ${first.title || "(untitled)"}${first.price ? " — $" + first.price.toLocaleString() : ""}.`, "ok");
   } catch (err) {
     notify("Network error: " + err.message, "err");
   } finally {

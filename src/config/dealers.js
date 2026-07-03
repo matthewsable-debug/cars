@@ -2,12 +2,13 @@
 //
 // Two adapter types are supported out of the box:
 //
-//   type: "html"   Fetches a listing/inventory page and extracts vehicles using
-//                  CSS selectors. Configure `url` and `selectors`. This works
-//                  against most server-rendered dealer inventory pages. Because
-//                  every dealer's markup differs, the selectors below are
-//                  examples — copy a dealer's inventory URL, inspect the page,
-//                  and fill in the selectors that match its listing cards.
+//   type: "html"   Fetches the dealer's site and extracts vehicles using CSS
+//                  selectors. Set `url` to the dealer's MAIN website — the app
+//                  automatically discovers the inventory page deeper in the site
+//                  (and caches it as `inventoryUrl`). Because every dealer's
+//                  markup differs, the selectors below are examples; sensible
+//                  defaults are applied when omitted. Cars marked sold / sale
+//                  pending are automatically excluded.
 //
 //   type: "demo"   Generates realistic sample inventory locally. This lets the
 //                  platform run end-to-end with no network access so you can see
@@ -42,7 +43,10 @@ export const dealers = [
     name: "Example Dealer (HTML)",
     type: "html",
     enabled: false,
-    url: "https://www.example-dealer.com/inventory/used",
+    // `url` is the dealer's MAIN website. The app auto-discovers the inventory
+    // page deeper in the site and caches it as `inventoryUrl`. (You can still
+    // set `inventoryUrl` explicitly here to skip discovery.)
+    url: "https://www.example-dealer.com",
     // Optional: how to page through results. `{page}` is substituted.
     pagination: { param: "?page={page}", maxPages: 3 },
     selectors: {

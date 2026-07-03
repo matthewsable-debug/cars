@@ -1,7 +1,7 @@
 import { scrapeAll } from "../scrapers/index.js";
 import { findMatches } from "./matcher.js";
 import { load, save, reconcile, activeListings } from "./store.js";
-import { listDealers } from "./dealerStore.js";
+import { listDealers, cacheInventoryUrl } from "./dealerStore.js";
 import { listEntries } from "./watchlistStore.js";
 
 // Runs one full monitoring cycle: scrape every enabled dealer, match listings
@@ -20,10 +20,15 @@ export async function runScan({
   const dealerReports = [];
   for (const r of scraped) {
     allListings.push(...r.listings);
+    // Remember the auto-discovered inventory page so we skip re-crawling next time.
+    if (r.discoveredInventoryUrl && r.dealer?.id && r.dealer.id !== "__test__") {
+      cacheInventoryUrl(r.dealer.id, r.discoveredInventoryUrl);
+    }
     dealerReports.push({
       dealer: r.dealer.name,
       dealerId: r.dealer.id,
       scanned: r.listings.length,
+      inventoryUrl: r.discoveredInventoryUrl || r.dealer.inventoryUrl || null,
       error: r.error,
     });
   }

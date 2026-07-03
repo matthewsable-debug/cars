@@ -91,14 +91,19 @@ The easiest way to add and manage dealers is the built-in **Dealers** page at
 **http://localhost:3000/dealers.html** (linked from the dashboard nav). From
 there you can:
 
-- **Submit a dealer website** — enter a name and its inventory page URL. Sensible
-  extraction selectors are applied by default; expand **Advanced** to customize
-  them.
-- **Test before saving** — the **Test scrape** button fetches the page and reports
-  how many vehicles it found (and the first one), so you can validate the URL and
-  selectors up front.
+- **Submit a dealer website** — just paste the dealer's **main website URL**. The
+  app **automatically discovers the inventory page** deeper in the site (looking
+  for used-cars / inventory / pre-owned sections and verifying they list
+  vehicles), then caches it. Sensible extraction selectors are applied by default;
+  expand **Advanced** to customize them.
+- **Test before saving** — the **Test scrape** button runs discovery + scraping and
+  reports the inventory page it found and how many available vehicles are on it.
 - **Enable / disable** a dealer without deleting it (toggle the switch).
 - **Edit** or **Delete** any dealer.
+
+**Sold cars are excluded automatically** — vehicles marked *Sold* / *Sale Pending*
+on the page are skipped, and any listing that disappears from a dealer's inventory
+is dropped from the dashboard and digests on the next scan.
 
 Dealers are persisted in a JSON database at `data/dealers.json`, seeded on first
 run from `src/config/dealers.js`. Once seeded, the database is the source of truth
@@ -108,8 +113,9 @@ next **Scan now**).
 ## Configure dealers (in code)
 
 You can also edit `src/config/dealers.js` (used to seed the database). To monitor
-a real dealer, add an `html` dealer and point the selectors at its inventory
-page's listing cards:
+a real dealer, add an `html` dealer with its **main website URL** — the inventory
+page is discovered automatically. Selectors are optional (defaults are applied);
+override them when a site's markup needs it:
 
 ```js
 {
@@ -117,7 +123,8 @@ page's listing cards:
   name: "My Local Dealer",
   type: "html",
   enabled: true,
-  url: "https://www.mydealer.com/inventory/used",
+  url: "https://www.mydealer.com",   // main site; inventory page auto-discovered
+  // inventoryUrl: "https://www.mydealer.com/inventory/used", // optional: skip discovery
   pagination: { param: "?page={page}", maxPages: 3 },
   selectors: {
     card:    ".vehicle-card",
@@ -127,6 +134,7 @@ page's listing cards:
     year:    { sel: ".vehicle-title", regex: "(19|20)\\d{2}" },
     link:    { sel: "a.vehicle-link", attr: "href" },
     image:   { sel: "img", attr: "src" },
+    sold:    { sel: ".sold-badge" },   // optional: element marking a sold car
   },
 }
 ```
@@ -271,9 +279,10 @@ src/
     dealers.js       seed dealers (loaded into the database on first run)
     notifications.js email/schedule config (from env vars)
   scrapers/
-    index.js         adapter registry + orchestration
+    index.js         adapter registry + orchestration (discovery, sold-filter)
+    discovery.js     auto-find the inventory page from a dealer's main URL
     http.js          fetch wrapper (UA, timeout, retry)
-    htmlScraper.js   config-driven CSS-selector scraper
+    htmlScraper.js   config-driven CSS-selector scraper (+ sold detection)
     demoScraper.js   realistic offline sample inventory
   core/
     listing.js       normalize + parse listings, stable ids

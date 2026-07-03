@@ -28,7 +28,7 @@
       <!-- Submit / edit form -->
       <form class="panel" id="dealerForm" autocomplete="off">
         <h2 id="formTitle">Add a dealer</h2>
-        <p class="hint">Submit a dealer's inventory page URL. Selectors are optional — sensible defaults are applied, and you can test before saving.</p>
+        <p class="hint">Just paste the dealer's main website URL — the app automatically finds the inventory page deeper in the site. Selectors are optional (sensible defaults apply), and you can test before saving.</p>
 
         <input type="hidden" id="editId" value="">
 
@@ -46,9 +46,9 @@
         </div>
 
         <div class="field" id="urlField">
-          <label for="url">Inventory page URL</label>
-          <input type="url" id="url" placeholder="https://www.dealer.com/inventory/used">
-          <div class="sub">The page that lists the dealer's vehicles.</div>
+          <label for="url">Dealer website URL</label>
+          <input type="url" id="url" placeholder="https://www.yourdealer.com">
+          <div class="sub">The dealer's main site. The inventory page is found automatically.</div>
         </div>
 
         <details class="advanced" id="advanced">
