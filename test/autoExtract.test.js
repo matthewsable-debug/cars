@@ -137,6 +137,18 @@ test("extractListingsFromJson reads a Rails-style vehicles feed", () => {
   assert.equal(items.find((i) => /Shelby/.test(i.make)).sold, true);
 });
 
+test("JSON feed with no prices (Price on request) is still read", () => {
+  const feed = JSON.stringify([
+    { year: 1973, make: "Porsche", model: "911 Carrera RS", url: "/vehicles/1", photo: "/i/1.jpg" },
+    { year: 1961, make: "Jaguar", model: "E-Type", url: "/vehicles/2" },
+    { about: "European Collectibles, founded in 1986", url: "/about" },
+  ]);
+  const items = extractListingsFromJson(feed, "https://dealer.test/vehicles.json");
+  assert.equal(items.length, 2, "two priced-less vehicles, not the about record");
+  assert.equal(items[0].make, "Porsche");
+  assert.equal(items[0].price, null);
+});
+
 test("scrapeDealer prefers a JSON feed and filters sold cars", async () => {
   const dealer = {
     id: "ec", name: "European Collectibles", type: "browser",
@@ -148,6 +160,24 @@ test("scrapeDealer prefers a JSON feed and filters sold cars", async () => {
   assert.equal(result.listings.length, 2, "3 in feed minus 1 sold");
   assert.ok(result.listings.every((l) => !l.sold));
   assert.ok(result.listings.some((l) => l.make === "Ferrari"));
+});
+
+const NOISE_PAGE = `<!doctype html><html><body>
+  <div class="grid">
+    <div class="v">
+      <a href="/vehicles/123-1973-porsche-911"><img src="/i/1.jpg"><h3>1973 Porsche 911 Carrera</h3></a>
+      <span class="p">Price on request</span>
+    </div>
+    <div class="promo"><a href="/about"><img src="/logo.png">European Collectibles — founded in 1986</a></div>
+    <footer><a href="/"><img src="/px.gif">© 2024 European Collectibles. All rights reserved.</a></footer>
+  </div>
+</body></html>`;
+
+test("DOM heuristic ignores marketing/copyright years, keeps real cars", () => {
+  const items = autoExtractListings(NOISE_PAGE, "https://dealer.test/vehicles");
+  assert.equal(items.length, 1, "only the real vehicle, not the 1986/2024 blurbs");
+  assert.match(items[0].title, /Porsche 911/);
+  assert.equal(items[0].link, "https://dealer.test/vehicles/123-1973-porsche-911");
 });
 
 test("scrapeDealer works with NO selectors via auto-extraction", async () => {

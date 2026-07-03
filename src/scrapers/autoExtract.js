@@ -198,19 +198,26 @@ const K = {
 function objToListing(obj, pageUrl) {
   const get = lcGetter(obj);
   const price = numDeep(firstOf(get, K.price));
-  if (price == null || price < 100) return null;
+  const priced = price != null && price >= 100;
 
   const year = num(firstOf(get, K.year));
   const make = str(firstOf(get, K.make));
   const model = str(firstOf(get, K.model));
   let title = str(firstOf(get, K.title));
   const yearInTitle = YEAR_RE.test(title);
+  const hasYear = (year != null && year >= 1900 && year <= 2100) || yearInTitle;
+  const link = abs(str(firstOf(get, K.url)), pageUrl);
 
-  const isVehicle = (year != null && year >= 1900 && year <= 2100) || (make && model) || yearInTitle;
-  if (!isVehicle) return null;
+  // Accept a record if it has a price, OR it's clearly a specific vehicle: a
+  // year plus a make/model (or a vehicle-like title) and a link to it. The
+  // second path catches "Price on request" classics that omit a price.
+  const namedVehicle = hasYear && (make || model || yearInTitle) && !!link;
+  if (!priced && !namedVehicle) return null;
 
   if (!title) title = [year, make, model].filter(Boolean).join(" ").trim();
   if (!title) return null;
+  // Skip non-vehicle records (e.g. an "about" blurb with a founding year).
+  if (!make && !model && NON_MODEL_YEAR.test(title)) return null;
 
   let image = str(firstOf(get, K.image));
   if (!image) {
@@ -226,10 +233,10 @@ function objToListing(obj, pageUrl) {
     make,
     model,
     year,
-    price,
+    price: priced ? price : null,
     mileage: numDeep(firstOf(get, K.mileage)),
     color: str(firstOf(get, K.color)),
-    link: abs(str(firstOf(get, K.url)), pageUrl),
+    link,
     image: abs(image, pageUrl),
     sold: /\bsold\b|sale[\s-]?pending|soldout/.test(status),
   };
@@ -257,6 +264,21 @@ const YEAR_RE = /\b(19|20)\d{2}\b/;
 // Links that look like a vehicle detail page, or a 17-char VIN in the path.
 const DETAIL_RE =
   /\/(vehicle|vehicles|inventory|used|new|certified|vin|detail|listing|for-sale|cars?|auto|stock)\b|\/[A-HJ-NPR-Z0-9]{17}(?:[/?]|$)/i;
+// A link to a SPECIFIC vehicle (keyword + a slug/id segment, or a VIN). Used to
+// distinguish a real listing card from marketing blocks that merely mention a year.
+const DETAIL_SLUG_RE =
+  /\/(?:vehicles?|inventory|listings?|cars?|autos?|stock|detail|for-sale)\/[^/?#]+|\/[A-HJ-NPR-Z0-9]{17}(?:[/?#]|$)/i;
+// "since 1986", "est. 1986", "© 2024" etc. — years that are NOT model years.
+const NON_MODEL_YEAR = /\b(since|est\.?|established|founded|copyright|©|all rights)\b/i;
+
+// A title names a specific vehicle: it has a model year, a real word beside it
+// (a make/model), and isn't a "founded/since/copyright <year>" marketing phrase.
+function looksLikeVehicleTitle(title) {
+  if (!title || !YEAR_RE.test(title)) return false;
+  if (NON_MODEL_YEAR.test(title)) return false;
+  const words = title.replace(/[^a-zA-Z ]+/g, " ").split(/\s+/).filter((w) => w.length > 1);
+  return words.length >= 1; // at least one make/model-ish word besides the year
+}
 
 function extractHeuristic($, pageUrl) {
   const byContainer = new Map();
@@ -288,21 +310,32 @@ function extractHeuristic($, pageUrl) {
     const year = (ct.match(YEAR_RE) || [])[0];
     if (!year) return;
 
+    // A real listing card links to a SPECIFIC vehicle, or shows a price. This
+    // rejects marketing blocks ("...founded in 1986", copyright footers) that
+    // merely contain a year near a logo image. Consider the anchor we started
+    // from as well as any detail link inside the card.
+    const startIsDetail = DETAIL_SLUG_RE.test(href);
+    const descDetail = startIsDetail
+      ? null
+      : card.find("a[href]").filter((_, el) => DETAIL_SLUG_RE.test($(el).attr("href") || "")).first();
+    const hasDetail = startIsDetail || (descDetail && descDetail.length > 0);
+    const priceMatch = ct.match(PRICE_RE);
+    if (!hasDetail && !priceMatch) return;
+
     // Title: the link text if it names the vehicle, else a heading in the card.
     let title = text && YEAR_RE.test(text) ? text : clean(card.find("h1,h2,h3,h4,[class*=title],[class*=name]").first().text());
     if (!title) title = text;
     if (!title) return;
     // If the title lacks the year (year is in a separate element), prepend it.
     if (!YEAR_RE.test(title)) title = `${year} ${title}`.trim();
-    // Reject obvious non-vehicle links (nav/CTAs) that happened to sit near a year.
-    if (/^\d{4}\s+(view|see|shop|browse|read|learn|more|inquire|details?|home|about|contact)\b/i.test(title)) return;
+    if (!looksLikeVehicleTitle(title)) return;
 
     const img = card.find("img").first();
     const image = abs(
       img.attr("src") || img.attr("data-src") || img.attr("data-lazy") || img.attr("data-original") || "",
       pageUrl
     );
-    const priceMatch = ct.match(PRICE_RE);
+    const linkHref = startIsDetail ? href : descDetail && descDetail.length ? descDetail.attr("href") : href;
     const mileage = (ct.match(/([\d,]{3,})\s*(?:mi|miles|mileage|km)\b/i) || [])[1];
     const sold = /\b(sold|sale[\s-]?pending|no longer available)\b/i.test(ct);
 
@@ -311,7 +344,7 @@ function extractHeuristic($, pageUrl) {
       price: priceMatch ? priceMatch[0] : null, // optional — POA classics have none
       year,
       mileage,
-      link: abs(href, pageUrl),
+      link: abs(linkHref, pageUrl),
       image,
       sold,
     });
