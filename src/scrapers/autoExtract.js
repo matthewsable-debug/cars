@@ -13,10 +13,16 @@ import * as cheerio from "cheerio";
 
 export function autoExtractListings(html, pageUrl) {
   const $ = cheerio.load(html);
-  const fromLd = extractJsonLd($, pageUrl);
-  const fromDom = extractHeuristic($, pageUrl);
-  // Prefer whichever found more; structured data wins ties (it's cleaner).
-  return fromLd.length >= fromDom.length ? (fromLd.length ? fromLd : fromDom) : fromDom;
+  // Try each strategy; keep whichever found the most listings. Ties prefer the
+  // earlier (cleaner) strategy: structured data, then embedded JSON, then DOM.
+  const candidates = [
+    extractJsonLd($, pageUrl),
+    extractEmbeddedJson($, pageUrl),
+    extractHeuristic($, pageUrl),
+  ];
+  let best = [];
+  for (const c of candidates) if (c.length > best.length) best = c;
+  return best;
 }
 
 // How many listings the page appears to contain (used by inventory discovery to
@@ -106,6 +112,127 @@ function firstImage(image) {
   if (Array.isArray(image)) return firstImage(image[0]);
   if (typeof image === "object") return str(image.url ?? image.contentUrl);
   return str(image);
+}
+
+// ---- embedded JSON (Next.js / React state, JSON script blocks) ------------
+
+// Modern dealer/boutique sites (often Next.js) ship their inventory as a JSON
+// blob in the page — <script id="__NEXT_DATA__">, <script type="application/
+// json">, or an inline window.__NUXT__/__INITIAL_STATE__ assignment. We parse
+// those and walk the tree for objects that look like vehicle listings.
+function extractEmbeddedJson($, pageUrl) {
+  const blobs = [];
+  $("script").each((_, el) => {
+    const type = ($(el).attr("type") || "").toLowerCase();
+    const id = ($(el).attr("id") || "").toLowerCase();
+    const raw = $(el).text();
+    if (!raw || raw.length > 4_000_000) return;
+    if (id === "__next_data__" || type === "application/json") {
+      tryParse(raw, blobs);
+    } else if (/__(NEXT_DATA|NUXT|INITIAL_STATE|APOLLO_STATE|PRELOADED_STATE|remixContext)__/.test(raw)) {
+      const m = raw.match(/=\s*(\{[\s\S]*\})\s*;?\s*$/);
+      if (m) tryParse(m[1], blobs);
+    }
+  });
+
+  const out = [];
+  const budget = { count: 0 };
+  for (const data of blobs) walk(data, pageUrl, out, budget);
+  return dedupe(out);
+}
+
+function tryParse(raw, arr) {
+  try {
+    arr.push(JSON.parse(raw));
+  } catch {
+    /* not valid JSON */
+  }
+}
+
+function walk(node, pageUrl, out, budget) {
+  if (budget.count > 50_000 || node == null || typeof node !== "object") return;
+  if (Array.isArray(node)) {
+    for (const x of node) {
+      budget.count++;
+      walk(x, pageUrl, out, budget);
+    }
+    return;
+  }
+  const listing = objToListing(node, pageUrl);
+  if (listing) out.push(listing);
+  for (const k in node) {
+    budget.count++;
+    walk(node[k], pageUrl, out, budget);
+  }
+}
+
+const K = {
+  price: ["price", "saleprice", "sale_price", "askingprice", "asking_price", "listprice", "list_price", "priceusd", "price_usd", "amount", "msrp"],
+  year: ["year", "modelyear", "model_year", "vehicleyear"],
+  make: ["make", "brand", "manufacturer"],
+  model: ["model", "modelname", "model_name"],
+  title: ["title", "name", "headline", "displayname", "display_name", "heading", "fulltitle", "full_title"],
+  mileage: ["mileage", "odometer", "miles", "kilometers", "kms"],
+  color: ["color", "colour", "exteriorcolor", "exterior_color", "paint"],
+  url: ["url", "link", "permalink", "path", "href", "detailurl", "detail_url", "slug"],
+  image: ["image", "imageurl", "image_url", "photo", "thumbnail", "featuredimage", "featured_image", "heroimage"],
+  images: ["images", "photos", "gallery", "media"],
+  status: ["status", "availability", "condition", "state"],
+};
+
+function objToListing(obj, pageUrl) {
+  const get = lcGetter(obj);
+  const price = numDeep(firstOf(get, K.price));
+  if (price == null || price < 100) return null;
+
+  const year = num(firstOf(get, K.year));
+  const make = str(firstOf(get, K.make));
+  const model = str(firstOf(get, K.model));
+  let title = str(firstOf(get, K.title));
+  const yearInTitle = YEAR_RE.test(title);
+
+  const isVehicle = (year != null && year >= 1900 && year <= 2100) || (make && model) || yearInTitle;
+  if (!isVehicle) return null;
+
+  if (!title) title = [year, make, model].filter(Boolean).join(" ").trim();
+  if (!title) return null;
+
+  let image = str(firstOf(get, K.image));
+  if (!image) {
+    const arr = firstOf(get, K.images);
+    if (Array.isArray(arr) && arr.length) {
+      image = typeof arr[0] === "string" ? arr[0] : str(arr[0]?.url ?? arr[0]?.src);
+    }
+  }
+  const status = str(firstOf(get, K.status)).toLowerCase();
+
+  return {
+    title,
+    make,
+    model,
+    year,
+    price,
+    mileage: numDeep(firstOf(get, K.mileage)),
+    color: str(firstOf(get, K.color)),
+    link: abs(str(firstOf(get, K.url)), pageUrl),
+    image: abs(image, pageUrl),
+    sold: /\bsold\b|sale[\s-]?pending|soldout/.test(status),
+  };
+}
+
+function lcGetter(obj) {
+  const map = {};
+  for (const k in obj) map[k.toLowerCase()] = obj[k];
+  return map;
+}
+function firstOf(get, keys) {
+  for (const k of keys) if (get[k] != null && get[k] !== "") return get[k];
+  return null;
+}
+// Numbers that may be wrapped as { amount } / { value } / { raw }.
+function numDeep(v) {
+  if (v && typeof v === "object") return num(v.amount ?? v.value ?? v.raw ?? v.price);
+  return num(v);
 }
 
 // ---- DOM heuristic --------------------------------------------------------

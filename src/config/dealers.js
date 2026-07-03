@@ -43,6 +43,24 @@ export const dealers = [
   },
 
   {
+    id: "european-collectibles",
+    name: "European Collectibles",
+    // Bot-protected classic-car dealer; use the browser scraper. Inventory is at
+    // /vehicles (set explicitly to skip discovery). Vehicles are auto-detected.
+    type: "browser",
+    enabled: true,
+    url: "https://www.europeancollectibles.com/",
+    inventoryUrl: "https://www.europeancollectibles.com/vehicles",
+  },
+  {
+    id: "cultivated-collector",
+    name: "The Cultivated Collector",
+    // Bot-protected classic/exotic dealer; browser scraper + auto-detection.
+    type: "browser",
+    enabled: true,
+    url: "https://thecultivatedcollector.com/",
+  },
+  {
     id: "copley-west",
     name: "Copley West",
     // copleywest.com is JavaScript-rendered and behind bot protection, so it

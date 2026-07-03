@@ -64,6 +64,32 @@ test("auto-extract falls back to a DOM heuristic (price + year + detail link)", 
   assert.equal(t.image, "https://dealer.test/img/tacoma.jpg");
 });
 
+const NEXT_PAGE = `<!doctype html><html><body>
+<div id="__next"></div>
+<script id="__NEXT_DATA__" type="application/json">
+{"props":{"pageProps":{"inventory":{"vehicles":[
+  {"id":1,"year":1973,"make":"Porsche","model":"911 Carrera RS","price":895000,"mileage":42000,
+   "exteriorColor":"Grand Prix White","slug":"/vehicles/1973-porsche-911-carrera-rs",
+   "images":[{"url":"/img/rs.jpg"}],"status":"available"},
+  {"id":2,"year":1965,"make":"Shelby","model":"Cobra","salePrice":"1250000",
+   "url":"/vehicles/1965-shelby-cobra","thumbnail":"/img/cobra.jpg","status":"sold"}
+]}}},"page":"/vehicles"}
+</script></body></html>`;
+
+test("auto-extract reads embedded Next.js JSON (__NEXT_DATA__)", () => {
+  const items = autoExtractListings(NEXT_PAGE, "https://dealer.test/vehicles");
+  assert.equal(items.length, 2);
+  const rs = items.find((i) => /Carrera RS/.test(i.title));
+  assert.equal(rs.make, "Porsche");
+  assert.equal(rs.year, 1973);
+  assert.equal(rs.price, 895000);
+  assert.equal(rs.mileage, 42000);
+  assert.equal(rs.color, "Grand Prix White");
+  assert.equal(rs.link, "https://dealer.test/vehicles/1973-porsche-911-carrera-rs");
+  assert.equal(rs.image, "https://dealer.test/img/rs.jpg");
+  assert.equal(items.find((i) => /Cobra/.test(i.title)).sold, true);
+});
+
 test("scrapeDealer works with NO selectors via auto-extraction", async () => {
   const dealer = {
     id: "auto",

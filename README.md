@@ -93,10 +93,11 @@ there you can:
 
 - **Submit a dealer website** — just paste the dealer's **main website URL**. The
   app **automatically discovers the inventory page** deeper in the site and
-  **auto-detects the vehicles** on it — no CSS selectors needed. Detection uses
-  schema.org structured data (which most dealer platforms embed) with a
-  price/year/detail-link DOM heuristic as a fallback. Expand **Advanced** only if
-  a specific site needs hand-tuned selectors.
+  **auto-detects the vehicles** on it — no CSS selectors needed. Detection tries,
+  in order: schema.org structured data (JSON-LD), an embedded JSON blob
+  (`__NEXT_DATA__` and similar, used by React/Next.js dealer sites), and a
+  price/year/detail-link DOM heuristic. Expand **Advanced** only if a specific
+  site needs hand-tuned selectors.
 - **Pick how to fetch** — *Website (fast)* uses plain HTTP for normal
   server-rendered sites; *Website (headless browser)* renders pages in real
   Chromium for sites that use JavaScript or block scrapers with bot protection
@@ -310,7 +311,7 @@ src/
   scrapers/
     index.js         adapter registry + orchestration (discovery, sold-filter)
     discovery.js     auto-find the inventory page from a dealer's main URL
-    autoExtract.js   selector-free vehicle detection (schema.org + DOM heuristic)
+    autoExtract.js   selector-free detection (schema.org, embedded JSON, DOM)
     http.js          fetch wrapper (UA, timeout, retry)
     htmlScraper.js   config-driven CSS-selector scraper (+ sold detection)
     browserScraper.js headless Chromium (Playwright) for JS / bot-protected sites
