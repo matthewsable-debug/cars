@@ -5,6 +5,7 @@ import { runScan } from "./core/monitor.js";
 import { renderDigest } from "./summary.js";
 import { listDealers } from "./core/dealerStore.js";
 import { listEntries } from "./core/watchlistStore.js";
+import { sendDailyEmail } from "./core/emailer.js";
 import { entryLabel } from "./core/matcher.js";
 
 // Read dealers and the watchlist from their persisted databases (seeded from
@@ -25,9 +26,29 @@ async function main() {
       return doDigest();
     case "watchlist":
       return showWatchlist();
+    case "email":
+      return doEmail();
     default:
-      console.log("Usage: node src/cli.js [scan|digest|watchlist]");
+      console.log("Usage: node src/cli.js [scan|digest|watchlist|email]");
       process.exit(1);
+  }
+}
+
+// Send the daily digest now (updates since the last email). Intended to be run
+// by an external cron for a stateless deployment, e.g. `0 7 * * * npm run email`.
+async function doEmail() {
+  const result = await sendDailyEmail();
+  if (result.skipped) {
+    console.log(`No email sent: ${result.reason}`);
+    return;
+  }
+  if (result.dryRun) {
+    console.log(`Dry run (no SMTP configured). ${result.count} update(s) written to:\n  ${result.file}`);
+    console.log(`Set SMTP_HOST + MAIL_TO to send for real.`);
+  } else if (result.sent) {
+    console.log(`Sent ${result.count} update(s) to ${result.to} (message ${result.messageId}).`);
+  } else if (result.error) {
+    console.log(`Email failed: ${result.error}`);
   }
 }
 

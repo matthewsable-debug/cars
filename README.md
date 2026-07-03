@@ -48,6 +48,7 @@ The server runs a scan on startup and every 30 minutes after (configurable via
 npm run scan        # run one scan and print matches to the terminal
 npm run digest      # write a standalone HTML summary to data/digest.html
 npm run watchlist   # print your current watchlist
+npm run email       # send the daily digest now (updates since last email)
 npm test            # run the test suite
 ```
 
@@ -150,32 +151,61 @@ registerAdapter("myapi", async (dealer) => {
 });
 ```
 
-## Delivering the digest by email
+## Daily email digest (7am, automatically)
 
-`npm run digest` writes a fully self-contained HTML file (inline styles and
-images) to `data/digest.html`. Because it's standalone, you can pipe it straight
-into any mailer. Example with a local `sendmail`:
+When the server is running it emails you a digest **every day at 7:00 AM
+America/New_York** containing only the matches that are **new since the last
+email**. The send time and timezone are configurable (`MAIL_HOUR`, `MAIL_TZ`).
+
+Configure delivery with environment variables (nothing is committed):
 
 ```bash
-npm run digest && (
-  echo "To: you@example.com"
-  echo "Subject: Your car watch summary"
-  echo "Content-Type: text/html"
-  echo
-  cat data/digest.html
-) | sendmail -t
+export MAIL_TO="you@example.com"          # recipient
+export MAIL_FROM="Car Monitor <bot@you.com>"
+export SMTP_HOST="smtp.gmail.com"          # your SMTP server
+export SMTP_PORT=587
+export SMTP_USER="you@example.com"
+export SMTP_PASS="app-password"
+# Optional:
+export MAIL_HOUR=7                          # local hour to send (default 7)
+export MAIL_TZ="America/New_York"           # timezone (default ET)
+export MAIL_SEND_EMPTY=false                # email even with no new matches
+npm start
 ```
 
-Or fetch `GET /api/digest` from the running server and hand the HTML to your email
-provider's API (SendGrid, SES, Postmark, etc.).
+**Dry-run mode:** with no `SMTP_HOST` set, the platform still runs the full
+pipeline but writes each email to `data/outbox/*.html` instead of sending, so you
+can preview exactly what would go out.
+
+Trigger a send yourself anytime:
+
+- **Dashboard** → **Send test email**
+- CLI: `npm run email`
+- API: `POST /api/email/send` (and `GET /api/email/status` for the schedule)
+
+**Stateless / serverless deployments:** if you don't keep the server running,
+drive the digest from an external cron instead — it tracks "since the last email"
+in `data/listings.json`, so it works the same way:
+
+```cron
+0 7 * * *  cd /path/to/car-dealer-monitor && npm run email
+```
+
+### One-off standalone digest
+
+`npm run digest` writes a self-contained HTML file (inline styles + images) to
+`data/digest.html` — handy to pipe into any mailer or hand to a provider API
+(SendGrid, SES, Postmark). `GET /api/digest` returns the same HTML from the
+running server.
 
 ## Architecture
 
 ```
 src/
   config/
-    watchlist.js     the cars you want (criteria)
+    watchlist.js     seed watchlist (loaded into the database on first run)
     dealers.js       seed dealers (loaded into the database on first run)
+    notifications.js email/schedule config (from env vars)
   scrapers/
     index.js         adapter registry + orchestration
     http.js          fetch wrapper (UA, timeout, retry)
@@ -188,9 +218,11 @@ src/
     dealerStore.js   dealer database (CRUD, validation, seeding)
     watchlistStore.js watchlist database (CRUD, validation, seeding)
     monitor.js       one scan cycle + scheduler
+    emailer.js       daily "since last email" digest + 7am scheduler
   summary.js         standalone HTML digest renderer
+  email.js           SMTP transport (nodemailer) + dry-run outbox
   server.js          Express API + serves the dashboard
-  cli.js             scan / digest / watchlist commands
+  cli.js             scan / digest / watchlist / email commands
 public/
   index.html/app.js     dashboard
   watchlist.html/js      watchlist management interface
@@ -217,6 +249,8 @@ test/                unit tests
 | `POST /api/dealers/test` | Test-scrape a dealer config without saving         |
 | `POST /api/scan`         | Trigger a scan immediately                         |
 | `GET /api/digest`        | Standalone HTML summary of matches                 |
+| `GET /api/email/status`  | Email schedule, recipient, last/next send          |
+| `POST /api/email/send`   | Send the daily digest now (updates since last email)|
 
 ## License
 

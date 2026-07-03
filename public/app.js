@@ -13,6 +13,9 @@ const els = {
   sort: document.getElementById("sort"),
   newOnly: document.getElementById("newOnly"),
   scanBtn: document.getElementById("scanBtn"),
+  emailBar: document.getElementById("emailBar"),
+  emailInfo: document.getElementById("emailInfo"),
+  emailBtn: document.getElementById("emailBtn"),
 };
 
 async function load() {
@@ -24,6 +27,41 @@ async function load() {
   populateFilters(listings);
   renderStats(listings, status);
   applyFilters();
+  loadEmailStatus();
+}
+
+async function loadEmailStatus() {
+  try {
+    const s = await fetch("/api/email/status").then((r) => r.json());
+    const next = s.nextRun ? new Date(s.nextRun).toLocaleString() : "—";
+    const mode = s.configured
+      ? `sending to <strong>${esc(s.to)}</strong>`
+      : `<strong>dry-run</strong> (writes to data/outbox; set SMTP_HOST + MAIL_TO to send)`;
+    const last = s.lastEmailAt ? ` · last sent ${new Date(s.lastEmailAt).toLocaleString()}` : "";
+    els.emailInfo.innerHTML =
+      `📧 Daily digest at <strong>${s.hour}:00 ${esc(s.timezone)}</strong> — next ${esc(next)} · ${mode}${last}`;
+    els.emailBar.hidden = false;
+  } catch {
+    els.emailBar.hidden = true;
+  }
+}
+
+async function sendTestEmail() {
+  els.emailBtn.disabled = true;
+  els.emailBtn.textContent = "Sending…";
+  try {
+    const r = await fetch("/api/email/send", { method: "POST" }).then((x) => x.json());
+    if (r.skipped) alert("No new matches since the last email — nothing to send.");
+    else if (r.dryRun) alert(`Dry run: ${r.count} update(s) written to data/outbox/.\nSet SMTP_HOST + MAIL_TO to send for real.`);
+    else if (r.sent) alert(`Sent ${r.count} update(s) to ${r.to}.`);
+    else alert("Email not sent: " + (r.error || "unknown error"));
+    await load();
+  } catch (e) {
+    alert("Failed: " + e.message);
+  } finally {
+    els.emailBtn.disabled = false;
+    els.emailBtn.textContent = "Send test email";
+  }
 }
 
 function populateFilters(data) {
@@ -143,5 +181,6 @@ function escAttr(s) {
   els.newOnly.addEventListener(ev, applyFilters);
 });
 els.scanBtn.addEventListener("click", scanNow);
+els.emailBtn.addEventListener("click", sendTestEmail);
 
 load();

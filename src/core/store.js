@@ -80,6 +80,15 @@ export function activeListings(db) {
   return Object.values(db.listings).filter((l) => l.active !== false);
 }
 
+// Timestamp of the last digest email we sent, used to compute "updates since
+// the last email".
+export function getLastEmailAt(db) {
+  return db.lastEmailAt || null;
+}
+export function setLastEmailAt(db, iso) {
+  db.lastEmailAt = iso;
+}
+
 export function allListings(db) {
   return Object.values(db.listings);
 }

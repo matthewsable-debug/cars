@@ -9,6 +9,7 @@
     "scan": "node src/cli.js scan",
     "digest": "node src/cli.js digest",
     "watchlist": "node src/cli.js watchlist",
+    "email": "node src/cli.js email",
     "test": "node --test"
   },
   "engines": {
@@ -16,7 +17,8 @@
   },
   "dependencies": {
     "cheerio": "^1.0.0",
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "nodemailer": "^6.10.1"
   },
   "keywords": [
     "cars",

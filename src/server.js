@@ -21,6 +21,9 @@ import {
   updateEntry,
   removeEntry,
 } from "./core/watchlistStore.js";
+import { sendDailyEmail, startEmailScheduler, stopEmailScheduler, nextDailyRun } from "./core/emailer.js";
+import { mailConfig, isMailConfigured } from "./config/notifications.js";
+import { getLastEmailAt } from "./core/store.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -168,6 +171,34 @@ app.post("/api/scan", async (_req, res) => {
   }
 });
 
+// --- Email digest ----------------------------------------------------------
+
+app.get("/api/email/status", (_req, res) => {
+  const cfg = mailConfig();
+  const db = load();
+  res.json({
+    configured: isMailConfigured(),
+    dryRun: !cfg.smtp.host,
+    to: cfg.to || null,
+    hour: cfg.hour,
+    timezone: cfg.timezone,
+    lastEmailAt: getLastEmailAt(db),
+    nextRun: nextDailyRun(cfg.hour, cfg.timezone).toISOString(),
+  });
+});
+
+// Send the daily digest right now (updates since the last email). Useful for a
+// "send test" button or an external cron. Set ?scan=false to skip re-scanning.
+app.post("/api/email/send", async (req, res) => {
+  try {
+    const scan = req.query.scan !== "false";
+    const result = await sendDailyEmail({ scan });
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // Standalone HTML digest (openable / emailable) of the latest scan.
 app.get("/api/digest", (_req, res) => {
   const db = load();
@@ -198,10 +229,25 @@ app.listen(PORT, () => {
       console.log(`[${stamp}] scan: ${result.totalMatched} matches, ${result.newCount} new (of ${result.totalScanned} scanned)`);
     },
   });
+
+  // Schedule the daily digest email (updates since the last email).
+  const cfg = mailConfig();
+  const next = startEmailScheduler({
+    onSend: (r) => {
+      const how = r.sent ? `sent to ${r.to}` : r.dryRun ? `dry-run → ${r.file}` : r.skipped ? "skipped (no updates)" : "not sent";
+      console.log(`[email] daily digest: ${r.count ?? 0} update(s), ${how}`);
+    },
+  });
+  console.log(
+    `   Daily email at ${cfg.hour}:00 ${cfg.timezone} → ` +
+      `${isMailConfigured() ? cfg.to : "DRY-RUN (writes to data/outbox/; set SMTP_HOST + MAIL_TO to send)"}`
+  );
+  console.log(`   Next email:  ${next.toISOString()}\n`);
 });
 
 process.on("SIGINT", () => {
   stopScheduler();
+  stopEmailScheduler();
   process.exit(0);
 });
 
