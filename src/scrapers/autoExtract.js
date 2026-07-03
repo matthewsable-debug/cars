@@ -252,11 +252,13 @@ function extractHeuristic($, pageUrl) {
     const text = clean($a.text());
     if (!DETAIL_RE.test(href) && !YEAR_RE.test(text)) return;
 
-    // Walk up to the nearest ancestor that also contains a price.
+    // The listing card is the nearest ancestor of this link that holds a photo
+    // AND a model year — a reliable "card" signal that doesn't depend on a
+    // visible price (high-end classics are often "Price on request").
     let el = $a;
     let card = null;
-    for (let i = 0; i < 6 && el.length; i++) {
-      if (PRICE_RE.test(el.text())) {
+    for (let i = 0; i < 7 && el.length; i++) {
+      if (el.find("img").length > 0 && YEAR_RE.test(el.text())) {
         card = el;
         break;
       }
@@ -269,26 +271,29 @@ function extractHeuristic($, pageUrl) {
 
     const ct = card.text();
     const year = (ct.match(YEAR_RE) || [])[0];
-    const price = (ct.match(PRICE_RE) || [])[0];
-    if (!year || !price) return; // a real listing has both
+    if (!year) return;
 
-    const title =
-      text && YEAR_RE.test(text)
-        ? text
-        : clean(card.find("h1,h2,h3,h4,[class*=title]").first().text()) || text;
+    // Title: the link text if it names the vehicle, else a heading in the card.
+    let title = text && YEAR_RE.test(text) ? text : clean(card.find("h1,h2,h3,h4,[class*=title],[class*=name]").first().text());
+    if (!title) title = text;
     if (!title) return;
+    // If the title lacks the year (year is in a separate element), prepend it.
+    if (!YEAR_RE.test(title)) title = `${year} ${title}`.trim();
+    // Reject obvious non-vehicle links (nav/CTAs) that happened to sit near a year.
+    if (/^\d{4}\s+(view|see|shop|browse|read|learn|more|inquire|details?|home|about|contact)\b/i.test(title)) return;
 
     const img = card.find("img").first();
     const image = abs(
       img.attr("src") || img.attr("data-src") || img.attr("data-lazy") || img.attr("data-original") || "",
       pageUrl
     );
+    const priceMatch = ct.match(PRICE_RE);
     const mileage = (ct.match(/([\d,]{3,})\s*(?:mi|miles|mileage|km)\b/i) || [])[1];
     const sold = /\b(sold|sale[\s-]?pending|no longer available)\b/i.test(ct);
 
     byContainer.set(node, {
       title,
-      price,
+      price: priceMatch ? priceMatch[0] : null, // optional — POA classics have none
       year,
       mileage,
       link: abs(href, pageUrl),

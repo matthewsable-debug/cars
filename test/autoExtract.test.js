@@ -90,6 +90,32 @@ test("auto-extract reads embedded Next.js JSON (__NEXT_DATA__)", () => {
   assert.equal(items.find((i) => /Cobra/.test(i.title)).sold, true);
 });
 
+const POA_PAGE = `<!doctype html><html><body>
+  <div class="results">
+    <div class="v-card">
+      <a href="/vehicles/123-1973-porsche-911-carrera-rs"><h3>1973 Porsche 911 Carrera RS</h3></a>
+      <img src="/img/rs.jpg">
+      <span class="price">Price on request</span>
+    </div>
+    <div class="v-card">
+      <a href="/vehicles/456-1965-shelby-cobra"><h3>1965 Shelby Cobra</h3></a>
+      <img src="/img/cobra.jpg">
+      <div class="status">Inquire</div>
+    </div>
+    <a href="/about">About</a>
+  </div>
+</body></html>`;
+
+test("auto-extract catches classic cars with no listed price (Price on request)", () => {
+  const items = autoExtractListings(POA_PAGE, "https://dealer.test/vehicles");
+  assert.equal(items.length, 2);
+  const rs = items.find((i) => /Carrera RS/.test(i.title));
+  assert.equal(rs.title, "1973 Porsche 911 Carrera RS");
+  assert.equal(rs.price, null); // POA — no number, still detected
+  assert.equal(rs.link, "https://dealer.test/vehicles/123-1973-porsche-911-carrera-rs");
+  assert.equal(rs.image, "https://dealer.test/img/rs.jpg");
+});
+
 test("scrapeDealer works with NO selectors via auto-extraction", async () => {
   const dealer = {
     id: "auto",
