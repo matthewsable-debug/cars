@@ -20,28 +20,93 @@ const KEYS = ["dealers", "watchlist", "listings"];
 
 let pool = null;
 let schemaReady = false;
+let lastError = null;
 const pending = new Set(); // in-flight write-through queries, for flush()
 
 export function isEnabled() {
   return pool != null;
 }
 
+// A snapshot of the persistence state, for the status API + dashboard banner.
+export function status() {
+  const configured = !!process.env.DATABASE_URL;
+  return {
+    configured,
+    connected: pool != null,
+    durable: pool != null,
+    mode: pool != null ? "database" : configured ? "error" : "files",
+    error: pool == null ? lastError : null,
+  };
+}
+
 // Connect (if DATABASE_URL is set), ensure the schema, and restore any missing
 // local files from the database. Safe to call more than once.
 export async function init() {
+  // Connect only if we don't already have a pool (tests inject one directly).
   if (!pool) {
     const url = process.env.DATABASE_URL;
     if (!url) return; // file-only mode
-    pool = new pg.Pool({ connectionString: url, ssl: sslOption(url), max: 3 });
+    // The database may still be starting right after a deploy — retry a few times.
+    for (let attempt = 1; attempt <= 4 && !pool; attempt++) {
+      pool = await connect(url);
+      if (!pool && attempt < 4) await sleep(1500 * attempt);
+    }
+    if (!pool) {
+      console.error(`[durable] could NOT connect to DATABASE_URL — data will NOT survive redeploys. Last error: ${lastError}`);
+      return;
+    }
   }
+
   try {
     await ensureSchema();
     await restoreMissing();
-    console.log("[durable] database persistence enabled");
+    lastError = null;
+    console.log("[durable] database persistence enabled (data survives redeploys)");
   } catch (err) {
+    lastError = err.message;
     console.error("[durable] init failed, continuing with file storage:", err.message);
     await close();
   }
+}
+
+// Try to open a working pool. Some providers require SSL, others reject it, so
+// we try the most likely option first and fall back — a query proves it works.
+async function connect(url) {
+  for (const ssl of sslAttempts(url)) {
+    const candidate = new pg.Pool({ connectionString: url, ssl, max: 3 });
+    candidate.on("error", (e) => {
+      lastError = e.message;
+    });
+    try {
+      await candidate.query("SELECT 1");
+      return candidate;
+    } catch (err) {
+      lastError = err.message;
+      try {
+        await candidate.end();
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+  return null;
+}
+
+function sslAttempts(url) {
+  if (process.env.DATABASE_SSL === "false" || process.env.PGSSLMODE === "disable") return [false];
+  if (process.env.DATABASE_SSL === "true") return [{ rejectUnauthorized: false }];
+  let host = "";
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    /* ignore */
+  }
+  if (host === "localhost" || host === "127.0.0.1") return [false, { rejectUnauthorized: false }];
+  return [{ rejectUnauthorized: false }, false]; // managed PG: SSL first, then plain
+}
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
 }
 
 // Test hook: inject a pg-compatible pool (e.g. pg-mem) without a DATABASE_URL.
@@ -95,7 +160,10 @@ export function put(key, obj) {
        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at`,
       [key, JSON.stringify(obj), Date.now()]
     )
-    .catch((err) => console.error(`[durable] failed to persist ${key}:`, err.message))
+    .catch((err) => {
+      lastError = err.message;
+      console.error(`[durable] failed to persist ${key}:`, err.message);
+    })
     .finally(() => pending.delete(p));
   pending.add(p);
 }
@@ -117,17 +185,4 @@ export async function close() {
       /* already closed */
     }
   }
-}
-
-// Managed Postgres (Render/Fly/Heroku/etc.) typically needs SSL with a
-// non-strict chain; disable for local/plain connections.
-function sslOption(url) {
-  if (process.env.PGSSLMODE === "disable" || process.env.DATABASE_SSL === "false") return false;
-  try {
-    const u = new URL(url);
-    if (u.hostname === "localhost" || u.hostname === "127.0.0.1") return false;
-  } catch {
-    /* fall through */
-  }
-  return { rejectUnauthorized: false };
 }

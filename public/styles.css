@@ -47,6 +47,14 @@ body {
 .stat .num { font-size: 24px; font-weight: 700; }
 .stat .lbl { font-size: 12px; color: var(--muted); margin-top: 2px; }
 
+.banner {
+  margin: 14px 24px 0; padding: 12px 16px; border-radius: 10px; font-size: 14px;
+  border: 1px solid;
+}
+.banner.warn { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+.banner.err { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+.banner code { background: rgba(0,0,0,.07); padding: 1px 5px; border-radius: 4px; }
+
 .emailbar {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   flex-wrap: wrap; margin: 12px 24px 0;

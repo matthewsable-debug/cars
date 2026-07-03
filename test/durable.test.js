@@ -22,6 +22,9 @@ test("write-through mirrors saves and restores missing files on boot", async () 
   durable.configureForTest(pool);
   await durable.init(); // ensures schema; nothing to restore yet
 
+  assert.equal(durable.status().mode, "database");
+  assert.equal(durable.status().connected, true);
+
   // A save() mirrors the blob to the DB.
   durable.put("dealers", { dealers: [{ id: "copley-west", name: "Copley West" }] });
   await durable.flush();
@@ -52,6 +55,8 @@ test("write-through mirrors saves and restores missing files on boot", async () 
 test("with no database configured, durable is a no-op", async () => {
   const durable = await import("../src/core/durable.js?case=noop");
   assert.equal(durable.isEnabled(), false);
+  assert.equal(durable.status().mode, "files");
+  assert.equal(durable.status().durable, false);
   // put/flush/close must be safe to call with no backend.
   durable.put("dealers", { dealers: [] });
   await durable.flush();

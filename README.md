@@ -239,6 +239,14 @@ them:
   `docker compose` includes a Postgres service; on Fly, run `fly postgres
   create && fly postgres attach`.
 
+**How to tell which mode you're in:** the dashboard shows a yellow warning banner
+whenever storage is *not* durable (local files only, or `DATABASE_URL` set but
+not connecting — with the connection error shown). No banner means the database
+is connected and your data will survive redeploys. `GET /api/status` also reports
+`persistence: { mode: "database" | "files" | "error", connected, error }`, and
+the startup logs print the storage mode. The database connection tries SSL and
+non-SSL automatically and retries while the DB is starting up.
+
 **Headless browser:** `browser`-type dealers need Chromium. The Docker image is
 based on the official Playwright image, so it's already included (this makes the
 image larger). Give the instance ~1 GB RAM — Chromium is memory-hungry (the

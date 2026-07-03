@@ -153,6 +153,7 @@ app.get("/api/status", (_req, res) => {
     activeMatches: activeListings(db).length,
     recentScans: db.scans.slice(0, 10),
     intervalMinutes: Math.round(SCAN_INTERVAL_MS / 60000),
+    persistence: durable.status(),
   });
 });
 
@@ -217,9 +218,17 @@ app.get("/api/digest", (_req, res) => {
 // Restore data from the database (if DATABASE_URL is set) before serving, so a
 // fresh deploy comes up with the previously saved dealers/watchlist/listings.
 await durable.init();
+const persistence = durable.status();
 
 app.listen(PORT, () => {
   console.log(`\n🚗 Car Dealer Monitor running at http://localhost:${PORT}`);
+  if (persistence.mode === "database") {
+    console.log("   Storage:    Postgres (durable — survives redeploys) ✅");
+  } else if (persistence.mode === "error") {
+    console.log(`   Storage:    ⚠️  DATABASE_URL set but NOT connected — data will be LOST on redeploy. ${persistence.error || ""}`);
+  } else {
+    console.log("   Storage:    local files only — set DATABASE_URL (or mount a disk at DATA_DIR) so data survives redeploys ⚠️");
+  }
   console.log(`   Dashboard:  http://localhost:${PORT}/`);
   console.log(`   Digest:     http://localhost:${PORT}/api/digest`);
   console.log(`   Dealers:    http://localhost:${PORT}/dealers.html`);

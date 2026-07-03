@@ -26,8 +26,30 @@ async function load() {
   state.listings = listings.listings || [];
   populateFilters(listings);
   renderStats(listings, status);
+  renderPersistence(status.persistence);
   applyFilters();
   loadEmailStatus();
+}
+
+function renderPersistence(p) {
+  const el = document.getElementById("persistBanner");
+  if (!el || !p || p.mode === "database") {
+    if (el) el.hidden = true;
+    return;
+  }
+  if (p.mode === "error") {
+    el.className = "banner err";
+    el.innerHTML =
+      `⚠️ <strong>Storage not durable.</strong> <code>DATABASE_URL</code> is set but the database isn't connected, so ` +
+      `dealers and watchlist entries will be <strong>lost on the next redeploy</strong>.` +
+      (p.error ? ` <br>Error: <code>${esc(p.error)}</code>` : "");
+  } else {
+    el.className = "banner warn";
+    el.innerHTML =
+      `⚠️ <strong>Storage not durable.</strong> Data is kept in local files, which many hosts wipe on every deploy. ` +
+      `Set a <code>DATABASE_URL</code> (or mount a persistent disk at <code>DATA_DIR</code>) so your dealers and watchlist survive redeploys.`;
+  }
+  el.hidden = false;
 }
 
 async function loadEmailStatus() {
