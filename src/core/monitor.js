@@ -1,4 +1,4 @@
-import { scrapeAll } from "../scrapers/index.js";
+import { scrapeAll, closeBrowser } from "../scrapers/index.js";
 import { findMatches } from "./matcher.js";
 import { load, save, reconcile, activeListings } from "./store.js";
 import { listDealers, cacheInventoryUrl } from "./dealerStore.js";
@@ -14,7 +14,13 @@ export async function runScan({
   persist = true,
 } = {}) {
   const startedAt = new Date();
-  const scraped = await scrapeAll(dealers);
+  let scraped;
+  try {
+    scraped = await scrapeAll(dealers);
+  } finally {
+    // Free the headless browser (if any browser dealers were scraped).
+    await closeBrowser().catch(() => {});
+  }
 
   const allListings = [];
   const dealerReports = [];

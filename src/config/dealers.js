@@ -10,6 +10,12 @@
 //                  defaults are applied when omitted. Cars marked sold / sale
 //                  pending are automatically excluded.
 //
+//   type: "browser" Same as "html", but fetches pages with a real headless
+//                  browser (Playwright/Chromium). Use this for sites that render
+//                  inventory with JavaScript or block plain HTTP requests with
+//                  bot protection (a 403 to non-browser clients). Heavier, but it
+//                  behaves like a real browser.
+//
 //   type: "demo"   Generates realistic sample inventory locally. This lets the
 //                  platform run end-to-end with no network access so you can see
 //                  the dashboard, matching, and digests working immediately.
@@ -39,11 +45,10 @@ export const dealers = [
   {
     id: "copley-west",
     name: "Copley West",
-    type: "html",
-    // Paused: copleywest.com sits behind bot protection and returns 403 to
-    // non-browser requests, so the static scraper can't reach it. Re-enable once
-    // a headless-browser scraper is added. Inventory lives at /showroom/.
-    enabled: false,
+    // copleywest.com is JavaScript-rendered and behind bot protection, so it
+    // needs the headless-browser scraper. Inventory lives at /showroom/.
+    type: "browser",
+    enabled: true,
     url: "https://www.copleywest.com/",
   },
 

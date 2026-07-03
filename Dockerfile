@@ -1,13 +1,15 @@
-# Car Dealer Monitor — production image
-FROM node:22-alpine
-
-# Small init so signals (SIGTERM/SIGINT) are handled cleanly.
-RUN apk add --no-cache tini
+# Car Dealer Monitor — production image.
+# Based on the official Playwright image (matching the pinned playwright version)
+# so headless Chromium and all its system dependencies are already present for
+# the `browser` dealer type. This image is larger than a plain Node image — that
+# is the tradeoff for scraping JavaScript-rendered / bot-protected dealer sites.
+FROM mcr.microsoft.com/playwright:v1.56.0-jammy
 
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Install production dependencies first for better layer caching.
+# Install production dependencies first for better layer caching. Browsers are
+# already in the base image, so Playwright's install step finds them (no download).
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
@@ -23,9 +25,8 @@ VOLUME ["/data"]
 
 EXPOSE 3000
 
-# Container-level healthcheck hitting the app's /healthz endpoint.
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget -qO- http://127.0.0.1:${PORT}/healthz || exit 1
+# Node-based healthcheck (curl/wget may be absent); Node 22 has global fetch.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
-ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["node", "src/server.js"]

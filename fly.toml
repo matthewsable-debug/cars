@@ -38,4 +38,6 @@ primary_region = "iad"
 
 [[vm]]
   size = "shared-cpu-1x"
-  memory = "256mb"
+  # Headless Chromium (the `browser` dealer type) needs real memory; 256mb is
+  # not enough. Bump higher if scans of heavy sites get OOM-killed.
+  memory = "1024mb"

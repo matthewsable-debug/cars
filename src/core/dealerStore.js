@@ -11,7 +11,9 @@ const DEALERS_FILE = path.join(DATA_DIR, "dealers.json");
 // dealers can be added, edited, enabled/disabled, and removed at runtime
 // through the API and management UI.
 
-const VALID_TYPES = ["html", "demo"];
+const VALID_TYPES = ["html", "browser", "demo"];
+// Types that fetch a live website and therefore need a URL + selectors.
+const WEB_TYPES = ["html", "browser"];
 
 // Applied to HTML dealers when the submitter doesn't provide their own. These
 // generic selectors match a lot of server-rendered inventory pages and give a
@@ -40,7 +42,7 @@ export function loadDealers() {
   // just a name + main URL.
   const seeded = seedDealers.map((d) => {
     const dealer = { ...d, createdAt: new Date().toISOString() };
-    if (dealer.type === "html" && !(dealer.selectors && dealer.selectors.card)) {
+    if (WEB_TYPES.includes(dealer.type) && !(dealer.selectors && dealer.selectors.card)) {
       dealer.selectors = { ...DEFAULT_SELECTORS };
     }
     return dealer;
@@ -81,10 +83,10 @@ export function validateDealerInput(input, { partial = false } = {}) {
   }
 
   const effectiveType = out.type || input.type || "html";
-  if (effectiveType === "html") {
+  if (WEB_TYPES.includes(effectiveType)) {
     if (!partial || input.url !== undefined) {
       const url = String(input.url || "").trim();
-      if (!url) return err("An inventory page URL is required for HTML dealers.");
+      if (!url) return err("A website URL is required for this dealer type.");
       let parsed;
       try {
         parsed = new URL(url);
@@ -119,7 +121,7 @@ export function addDealer(input) {
     enabled: value.enabled !== undefined ? value.enabled : true,
     createdAt: new Date().toISOString(),
   };
-  if (value.type === "html") {
+  if (WEB_TYPES.includes(value.type)) {
     dealer.url = value.url;
     dealer.selectors =
       value.selectors && value.selectors.card ? value.selectors : { ...DEFAULT_SELECTORS };

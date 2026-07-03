@@ -249,11 +249,13 @@ app.listen(PORT, () => {
   console.log(`   Next email:  ${next.toISOString()}\n`);
 });
 
-process.on("SIGINT", () => {
+function shutdown() {
   stopScheduler();
   stopEmailScheduler();
   process.exit(0);
-});
+}
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown); // docker/orchestrator stop
 
 // Shape a stored dealer for API responses (full config, safe to expose).
 function publicDealer(d) {

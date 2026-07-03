@@ -96,6 +96,10 @@ there you can:
   for used-cars / inventory / pre-owned sections and verifying they list
   vehicles), then caches it. Sensible extraction selectors are applied by default;
   expand **Advanced** to customize them.
+- **Pick how to fetch** — *Website (fast)* uses plain HTTP for normal
+  server-rendered sites; *Website (headless browser)* renders pages in real
+  Chromium for sites that use JavaScript or block scrapers with bot protection
+  (a `403` to non-browser requests). Same selectors either way.
 - **Test before saving** — the **Test scrape** button runs discovery + scraping and
   reports the inventory page it found and how many available vehicles are on it.
 - **Enable / disable** a dealer without deleting it (toggle the switch).
@@ -217,6 +221,12 @@ below), or drive the digest from an external cron instead (`0 7 * * * npm run
 email`). State (dealers, watchlist, seen listings) lives under `DATA_DIR` — mount
 a persistent disk there so it survives restarts and redeploys.
 
+**Headless browser:** `browser`-type dealers need Chromium. The Docker image is
+based on the official Playwright image, so it's already included (this makes the
+image larger). Give the instance ~1 GB RAM — Chromium is memory-hungry (the
+Render/Fly configs are set accordingly). If you deploy on a bare Node host
+instead of Docker, run `npx playwright install --with-deps chromium` once.
+
 ### Docker (self-host on any VPS)
 
 ```bash
@@ -283,6 +293,7 @@ src/
     discovery.js     auto-find the inventory page from a dealer's main URL
     http.js          fetch wrapper (UA, timeout, retry)
     htmlScraper.js   config-driven CSS-selector scraper (+ sold detection)
+    browserScraper.js headless Chromium (Playwright) for JS / bot-protected sites
     demoScraper.js   realistic offline sample inventory
   core/
     listing.js       normalize + parse listings, stable ids

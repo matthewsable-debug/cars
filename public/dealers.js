@@ -26,9 +26,9 @@ function clearNotice() { els.notice.className = "notice"; }
 
 // Show/hide URL + selectors depending on dealer type.
 function syncTypeUI() {
-  const isHtml = els.type.value === "html";
-  els.urlField.style.display = isHtml ? "" : "none";
-  els.advanced.style.display = isHtml ? "" : "none";
+  const isWeb = els.type.value === "html" || els.type.value === "browser";
+  els.urlField.style.display = isWeb ? "" : "none";
+  els.advanced.style.display = isWeb ? "" : "none";
 }
 
 // Gather the form into a dealer payload.
@@ -38,7 +38,7 @@ function formToPayload() {
     type: els.type.value,
     enabled: els.enabled.checked,
   };
-  if (els.type.value === "html") {
+  if (els.type.value === "html" || els.type.value === "browser") {
     payload.url = els.url.value.trim();
     const sel = {};
     if (els.s_card.value.trim()) sel.card = els.s_card.value.trim();
@@ -156,7 +156,7 @@ els.form.addEventListener("submit", async (e) => {
 els.testBtn.addEventListener("click", async () => {
   clearNotice();
   const payload = formToPayload();
-  if (payload.type === "html" && !payload.url) { notify("Enter a URL to test.", "err"); return; }
+  if ((payload.type === "html" || payload.type === "browser") && !payload.url) { notify("Enter a URL to test.", "err"); return; }
   els.testBtn.disabled = true;
   els.testBtn.textContent = "Testing…";
   try {
