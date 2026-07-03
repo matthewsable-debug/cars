@@ -75,6 +75,42 @@ export async function renderPage(url, { waitSelector, timeoutMs = 30000 } = {}) 
   }
 }
 
+// Fetch a JSON feed from inside the dealer's page. We first load a same-origin
+// page (which clears the bot check the way a real visitor does), then run the
+// site's own `fetch` for each candidate URL and return the first JSON response.
+// This reliably reaches Rails-style `/vehicles.json` feeds behind bot protection.
+export async function browserFetchJson(pageUrl, urls) {
+  const browser = await getBrowser();
+  const context = await browser.newContext({
+    userAgent: UA,
+    locale: "en-US",
+    extraHTTPHeaders: { "Accept-Language": "en-US,en;q=0.9" },
+  });
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, "webdriver", { get: () => undefined });
+  });
+  const page = await context.newPage();
+  try {
+    await page.goto(pageUrl, { waitUntil: "domcontentloaded", timeout: 30000 }).catch(() => {});
+    return await page.evaluate(async (list) => {
+      for (const u of list) {
+        try {
+          const r = await fetch(u, { headers: { Accept: "application/json" } });
+          if (!r.ok) continue;
+          const t = await r.text();
+          const s = t.trim();
+          if (s && (s[0] === "{" || s[0] === "[")) return t;
+        } catch {
+          /* try next */
+        }
+      }
+      return null;
+    }, urls);
+  } finally {
+    await context.close().catch(() => {});
+  }
+}
+
 export async function closeBrowser() {
   if (!browserPromise) return;
   const current = browserPromise;

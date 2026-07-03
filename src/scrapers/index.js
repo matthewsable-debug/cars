@@ -1,8 +1,9 @@
 import { scrapeDemoDealer } from "./demoScraper.js";
 import { scrapeHtmlDealer } from "./htmlScraper.js";
 import { discoverInventoryUrl } from "./discovery.js";
-import { renderPage, closeBrowser } from "./browserScraper.js";
-import { countListings } from "./autoExtract.js";
+import { renderPage, browserFetchJson, closeBrowser } from "./browserScraper.js";
+import { fetchText } from "./http.js";
+import { countListings, extractListingsFromJson } from "./autoExtract.js";
 import { normalizeListing } from "../core/listing.js";
 
 // Adapter registry. Add your own by registering a function keyed by dealer type.
@@ -28,7 +29,7 @@ export { closeBrowser };
 // have a cached inventory URL, we auto-discover the inventory page deeper in the
 // site. `browser` dealers render pages in headless Chromium (for JS-heavy or
 // bot-protected sites). Sold / sale-pending cars are filtered out.
-export async function scrapeDealer(dealer, { fetchImpl } = {}) {
+export async function scrapeDealer(dealer, { fetchImpl, jsonFetch } = {}) {
   const adapter = ADAPTERS[dealer.type];
   if (!adapter) {
     return { dealer, listings: [], error: `No adapter for type "${dealer.type}"` };
@@ -55,15 +56,74 @@ export async function scrapeDealer(dealer, { fetchImpl } = {}) {
       working = { ...dealer, inventoryUrl: disc.url };
     }
 
+    // Prefer a JSON feed when one exists (e.g. Rails `/vehicles.json`) — it's far
+    // more reliable than scraping HTML. Only attempt in auto mode (no selectors).
+    if (WEB_TYPES.has(dealer.type) && !dealer.selectors?.card) {
+      const invUrl = working.inventoryUrl || working.url;
+      const candidates = jsonCandidates(invUrl);
+      if (candidates.length) {
+        const getJson =
+          jsonFetch ||
+          (dealer.type === "browser"
+            ? (urls) => browserFetchJson(invUrl, urls)
+            : (urls) => httpFetchJson(urls, resolvedFetch || fetchText));
+        let text = null;
+        try {
+          text = await getJson(candidates);
+        } catch {
+          /* fall back to HTML */
+        }
+        if (text) {
+          const items = extractListingsFromJson(text, invUrl);
+          if (items.length >= 2) {
+            const listings = items.map((r) => normalizeListing(r, dealer)).filter((l) => !l.sold);
+            return { dealer, listings, error: null, discoveredInventoryUrl, source: "json" };
+          }
+        }
+      }
+    }
+
     const raw = await adapter(working, { fetchImpl: resolvedFetch });
     const listings = raw
       .map((r) => normalizeListing(r, dealer))
       .filter((l) => !l.sold); // exclude cars already sold / sale-pending
 
-    return { dealer, listings, error: null, discoveredInventoryUrl };
+    return { dealer, listings, error: null, discoveredInventoryUrl, source: "html" };
   } catch (err) {
     return { dealer, listings: [], error: err.message || String(err) };
   }
+}
+
+// Candidate JSON-feed URLs for an inventory page (Rails/most frameworks).
+function jsonCandidates(inventoryUrl) {
+  if (!inventoryUrl) return [];
+  const out = [];
+  try {
+    const u = new URL(inventoryUrl);
+    const path = u.pathname.replace(/\/$/, "");
+    const asJson = new URL(u);
+    asJson.pathname = (path || "") + ".json";
+    out.push(asJson.toString());
+    const asParam = new URL(u);
+    asParam.searchParams.set("format", "json");
+    out.push(asParam.toString());
+  } catch {
+    /* ignore */
+  }
+  return out;
+}
+
+// Try each candidate over plain HTTP; return the first JSON-looking body.
+async function httpFetchJson(urls, fetchFn) {
+  for (const u of urls) {
+    try {
+      const t = await fetchFn(u);
+      if (t && /^\s*[[{]/.test(t)) return t;
+    } catch {
+      /* try next */
+    }
+  }
+  return null;
 }
 
 // Scrape all enabled dealers concurrently.

@@ -137,6 +137,7 @@ app.post("/api/dealers/test", async (req, res) => {
       ok: !result.error,
       error: result.error,
       count: result.listings.length,
+      method: result.source || null, // "json" (feed) or "html" (page scrape)
       inventoryUrl: result.discoveredInventoryUrl || dealer.inventoryUrl || dealer.url || null,
       sample: result.listings.slice(0, 6),
     });

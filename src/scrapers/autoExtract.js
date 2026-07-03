@@ -31,6 +31,21 @@ export function countListings(html, pageUrl) {
   return autoExtractListings(html, pageUrl).length;
 }
 
+// Extract listings from a JSON feed (e.g. a Rails `/vehicles.json` endpoint):
+// parse it and walk the tree for vehicle-like objects. Handles arbitrary shapes
+// (top-level array, { vehicles: [...] }, paginated wrappers, etc.).
+export function extractListingsFromJson(text, pageUrl) {
+  let data;
+  try {
+    data = typeof text === "string" ? JSON.parse(text) : text;
+  } catch {
+    return [];
+  }
+  const out = [];
+  walk(data, pageUrl, out, { count: 0 });
+  return dedupe(out);
+}
+
 // ---- schema.org JSON-LD ---------------------------------------------------
 
 function extractJsonLd($, pageUrl) {

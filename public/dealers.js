@@ -169,7 +169,8 @@ els.testBtn.addEventListener("click", async () => {
     const found = data.inventoryUrl ? ` (inventory: ${data.inventoryUrl})` : "";
     if (!data.count) { notify(`Reached the site${found} but found 0 available vehicles — try adjusting selectors.`, "err"); return; }
     const first = data.sample[0];
-    notify(`Found ${data.count} available vehicle(s)${found}. First: ${first.title || "(untitled)"}${first.price ? " — $" + first.price.toLocaleString() : ""}.`, "ok");
+    const via = data.method === "json" ? " via JSON feed" : "";
+    notify(`Found ${data.count} available vehicle(s)${via}${found}. First: ${first.title || "(untitled)"}${first.price ? " — $" + first.price.toLocaleString() : ""}.`, "ok");
   } catch (err) {
     notify("Network error: " + err.message, "err");
   } finally {

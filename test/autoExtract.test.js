@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { autoExtractListings } from "../src/scrapers/autoExtract.js";
+import { autoExtractListings, extractListingsFromJson } from "../src/scrapers/autoExtract.js";
 import { scrapeDealer } from "../src/scrapers/index.js";
 
 const JSONLD_PAGE = `<!doctype html><html><head>
@@ -114,6 +114,40 @@ test("auto-extract catches classic cars with no listed price (Price on request)"
   assert.equal(rs.price, null); // POA — no number, still detected
   assert.equal(rs.link, "https://dealer.test/vehicles/123-1973-porsche-911-carrera-rs");
   assert.equal(rs.image, "https://dealer.test/img/rs.jpg");
+});
+
+const VEHICLES_JSON = JSON.stringify({
+  vehicles: [
+    { year: 1973, make: "Porsche", model: "911 Carrera RS", price: 895000, mileage: 42000,
+      exterior_color: "White", url: "/vehicles/123-1973-porsche", photos: [{ url: "/img/1.jpg" }], status: "available" },
+    { year: 1965, make: "Shelby", model: "Cobra", price: 1250000, url: "/vehicles/456-1965-shelby", status: "sold" },
+    { year: 1990, make: "Ferrari", model: "F40", price: 3200000, url: "/vehicles/789-1990-ferrari" },
+  ],
+});
+
+test("extractListingsFromJson reads a Rails-style vehicles feed", () => {
+  const items = extractListingsFromJson(VEHICLES_JSON, "https://dealer.test/vehicles.json");
+  assert.equal(items.length, 3);
+  const p = items.find((i) => /Porsche/.test(i.title || i.make));
+  assert.equal(p.make, "Porsche");
+  assert.equal(p.year, 1973);
+  assert.equal(p.price, 895000);
+  assert.equal(p.link, "https://dealer.test/vehicles/123-1973-porsche");
+  assert.equal(p.image, "https://dealer.test/img/1.jpg");
+  assert.equal(items.find((i) => /Shelby/.test(i.make)).sold, true);
+});
+
+test("scrapeDealer prefers a JSON feed and filters sold cars", async () => {
+  const dealer = {
+    id: "ec", name: "European Collectibles", type: "browser",
+    url: "https://dealer.test/", inventoryUrl: "https://dealer.test/vehicles",
+  };
+  // Inject the JSON feed (stands in for the in-browser fetch of /vehicles.json).
+  const result = await scrapeDealer(dealer, { jsonFetch: async () => VEHICLES_JSON });
+  assert.equal(result.source, "json");
+  assert.equal(result.listings.length, 2, "3 in feed minus 1 sold");
+  assert.ok(result.listings.every((l) => !l.sold));
+  assert.ok(result.listings.some((l) => l.make === "Ferrari"));
 });
 
 test("scrapeDealer works with NO selectors via auto-extraction", async () => {
