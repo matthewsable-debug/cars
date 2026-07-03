@@ -3,13 +3,14 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { runScan } from "./core/monitor.js";
 import { renderDigest } from "./summary.js";
-import { watchlist } from "./config/watchlist.js";
 import { listDealers } from "./core/dealerStore.js";
+import { listEntries } from "./core/watchlistStore.js";
 import { entryLabel } from "./core/matcher.js";
 
-// Read dealers from the persisted database (seeded from config on first run),
-// so the CLI and the web UI operate on the same set of dealers.
+// Read dealers and the watchlist from their persisted databases (seeded from
+// config on first run), so the CLI and the web UI operate on the same data.
 const dealers = listDealers();
+const watchlist = listEntries();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const cmd = process.argv[2] || "scan";
@@ -74,6 +75,8 @@ function showWatchlist() {
     if (e.yearMin || e.yearMax) crit.push(`year ${e.yearMin ?? "*"}–${e.yearMax ?? "*"}`);
     if (e.priceMax) crit.push(`≤ ${money(e.priceMax)}`);
     if (e.mileageMax) crit.push(`≤ ${e.mileageMax.toLocaleString()} mi`);
+    if (e.color) crit.push(`${e.color}`);
+    if (e.features?.length) crit.push(e.features.join(", "));
     console.log(`  • ${entryLabel(e)}${crit.length ? "  (" + crit.join(", ") + ")" : ""}`);
   }
 }

@@ -14,7 +14,13 @@ import {
 } from "./core/dealerStore.js";
 import { scrapeDealer } from "./scrapers/index.js";
 import { validateDealerInput, DEFAULT_SELECTORS } from "./core/dealerStore.js";
-import { watchlist } from "./config/watchlist.js";
+import {
+  listEntries,
+  getEntry,
+  addEntry,
+  updateEntry,
+  removeEntry,
+} from "./core/watchlistStore.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -34,6 +40,7 @@ app.get("/api/listings", (req, res) => {
   const db = load();
   const active = activeListings(db);
   // Re-derive match labels against the current watchlist so filters stay fresh.
+  const watchlist = listEntries();
   const matched = findMatches(active, watchlist);
   res.json({
     generatedAt: lastResult?.startedAt || null,
@@ -46,7 +53,34 @@ app.get("/api/listings", (req, res) => {
   });
 });
 
-app.get("/api/watchlist", (_req, res) => res.json(watchlist));
+// --- Watchlist database (CRUD) ---------------------------------------------
+
+app.get("/api/watchlist", (_req, res) =>
+  res.json(listEntries().map((e) => ({ ...e, displayLabel: entryLabel(e) }))));
+
+app.get("/api/watchlist/:id", (req, res) => {
+  const entry = getEntry(req.params.id);
+  if (!entry) return res.status(404).json({ error: "Entry not found." });
+  res.json({ ...entry, displayLabel: entryLabel(entry) });
+});
+
+app.post("/api/watchlist", (req, res) => {
+  const { entry, error } = addEntry(req.body || {});
+  if (error) return res.status(400).json({ error });
+  res.status(201).json(entry);
+});
+
+app.put("/api/watchlist/:id", (req, res) => {
+  const { entry, error } = updateEntry(req.params.id, req.body || {});
+  if (error) return res.status(error === "Entry not found." ? 404 : 400).json({ error });
+  res.json(entry);
+});
+
+app.delete("/api/watchlist/:id", (req, res) => {
+  const { ok, error } = removeEntry(req.params.id);
+  if (error) return res.status(404).json({ error });
+  res.json({ ok });
+});
 
 // --- Dealer database (CRUD) ------------------------------------------------
 
@@ -121,7 +155,7 @@ app.get("/api/status", (_req, res) => {
 // Trigger a fresh scan on demand.
 app.post("/api/scan", async (_req, res) => {
   try {
-    lastResult = await runScan({ dealers: listDealers(), watchlist });
+    lastResult = await runScan({ dealers: listDealers(), watchlist: listEntries() });
     res.json({
       ok: true,
       totalScanned: lastResult.totalScanned,
@@ -138,7 +172,7 @@ app.post("/api/scan", async (_req, res) => {
 app.get("/api/digest", (_req, res) => {
   const db = load();
   const active = activeListings(db);
-  const matched = findMatches(active, watchlist);
+  const matched = findMatches(active, listEntries());
   const result = lastResult || {
     startedAt: db.scans[0]?.at || new Date().toISOString(),
     dealers: listDealers().filter((d) => d.enabled !== false),

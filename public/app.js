@@ -96,6 +96,7 @@ function card(l) {
   const price = l.price != null ? `$${l.price.toLocaleString()}` : "Call for price";
   const miles = l.mileage != null ? `${l.mileage.toLocaleString()} mi` : "Mileage n/a";
   const labels = (l.matchedLabels || []).map((x) => `<span class="chip">${esc(x)}</span>`).join("");
+  const detail = [l.color, (l.features || []).slice(0, 3).join(", ")].filter(Boolean).join(" · ");
   return `<a class="card" href="${escAttr(l.url)}" target="_blank" rel="noopener">
     <div class="photo">
       ${l.isNew ? '<span class="badge-new">NEW</span>' : ""}
@@ -105,6 +106,7 @@ function card(l) {
       <div class="title">${esc(l.title)}</div>
       <div class="price">${price}</div>
       <div class="meta">${esc(miles)} &middot; ${esc(l.dealer)}</div>
+      ${detail ? `<div class="meta">${esc(detail)}</div>` : ""}
       <div class="labels">${labels}</div>
       <div class="cta">View listing →</div>
     </div>

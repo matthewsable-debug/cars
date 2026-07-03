@@ -48,6 +48,25 @@ test("trim can be matched from the title", () => {
   assert.ok(matchesEntry(listing, { make: "Honda", model: "Civic", trim: "Type R" }));
 });
 
+test("color matches from the color field or the title", () => {
+  const l1 = normalizeListing({ title: "2021 Toyota Tacoma", color: "Blue", link: "http://x/c1" }, dealer);
+  assert.ok(matchesEntry(l1, { make: "Toyota", color: "blue" }));
+  assert.ok(!matchesEntry(l1, { make: "Toyota", color: "red" }));
+  const l2 = normalizeListing({ title: "2021 Red Toyota Tacoma", link: "http://x/c2" }, dealer);
+  assert.ok(matchesEntry(l2, { color: "Red" }), "color found in title");
+});
+
+test("features must all be present (from features list, trim, or title)", () => {
+  const listing = normalizeListing({
+    title: "2021 Toyota Tacoma TRD Off-Road",
+    features: ["AWD", "Sunroof", "Heated Seats"],
+    link: "http://x/f1",
+  }, dealer);
+  assert.ok(matchesEntry(listing, { make: "Toyota", features: ["AWD", "Sunroof"] }));
+  assert.ok(matchesEntry(listing, { features: ["TRD"] }), "feature found in title");
+  assert.ok(!matchesEntry(listing, { features: ["AWD", "Navigation"] }), "missing one feature");
+});
+
 test("findMatches annotates matchedLabels", () => {
   const listings = [
     normalizeListing({ title: "2021 Toyota Tacoma", price: 35000, mileage: 20000, link: "http://x/4" }, dealer),

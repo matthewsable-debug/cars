@@ -26,6 +26,8 @@ export function normalizeListing(raw, dealer) {
   const year = toInt(raw.year) || parsed.year || null;
   const price = toInt(raw.price);
   const mileage = toInt(raw.mileage);
+  const color = clean(raw.color);
+  const features = normalizeFeatures(raw.features);
 
   const idBasis = `${dealer.id}::${url || title}`;
   const id = crypto.createHash("sha1").update(idBasis).digest("hex").slice(0, 16);
@@ -40,11 +42,21 @@ export function normalizeListing(raw, dealer) {
     year,
     price,
     mileage,
+    color,
+    features,
     title,
     url,
     image: clean(raw.image) || "",
     location: clean(raw.location) || "",
   };
+}
+
+// Accept features as an array or a comma/pipe-separated string; return a clean
+// array of non-empty strings.
+export function normalizeFeatures(raw) {
+  if (!raw) return [];
+  const arr = Array.isArray(raw) ? raw : String(raw).split(/[,|]/);
+  return arr.map((f) => clean(f)).filter(Boolean);
 }
 
 function clean(v) {

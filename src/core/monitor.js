@@ -2,14 +2,15 @@ import { scrapeAll } from "../scrapers/index.js";
 import { findMatches } from "./matcher.js";
 import { load, save, reconcile, activeListings } from "./store.js";
 import { listDealers } from "./dealerStore.js";
-import { watchlist as defaultWatchlist } from "../config/watchlist.js";
+import { listEntries } from "./watchlistStore.js";
 
 // Runs one full monitoring cycle: scrape every enabled dealer, match listings
-// against the watchlist, persist results, and report what's new. Dealers come
-// from the persisted dealer database by default, so runtime edits take effect.
+// against the watchlist, persist results, and report what's new. Dealers and the
+// watchlist come from their persisted databases by default, so runtime edits
+// take effect on the next scan.
 export async function runScan({
   dealers = listDealers(),
-  watchlist = defaultWatchlist,
+  watchlist = listEntries(),
   persist = true,
 } = {}) {
   const startedAt = new Date();

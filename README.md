@@ -51,10 +51,23 @@ npm run watchlist   # print your current watchlist
 npm test            # run the test suite
 ```
 
-## Configure your watchlist
+## Manage your watchlist (web interface)
 
-Edit `src/config/watchlist.js`. Each entry lists criteria; a listing matches when
-it satisfies every field present (missing fields mean "any"):
+Open the **Watchlist** page at **http://localhost:3000/watchlist.html** (linked
+from the dashboard nav) to submit the specific cars you're hunting for. Each
+search captures make, model, trim, **color**, a year range, max price, max
+mileage, and must-have **features** (e.g. AWD, Sunroof, Leather). Fill in only
+what matters — blank fields match anything, and a listing must satisfy every
+field you set. You can edit or delete searches at any time.
+
+Searches are persisted in `data/watchlist.json` (seeded on first run from
+`src/config/watchlist.js`) and every scan checks all dealers against them.
+
+## Configure your watchlist (in code)
+
+You can also edit `src/config/watchlist.js` (used to seed the database). Each
+entry lists criteria; a listing matches when it satisfies every field present
+(missing fields mean "any"):
 
 ```js
 {
@@ -67,8 +80,9 @@ it satisfies every field present (missing fields mean "any"):
 }
 ```
 
-Supported fields: `make`, `model`, `trim`, `yearMin`, `yearMax`, `priceMin`,
-`priceMax`, `mileageMin`, `mileageMax`, and a friendly `label`.
+Supported fields: `make`, `model`, `trim`, `color`, `features` (array),
+`yearMin`, `yearMax`, `priceMin`, `priceMax`, `mileageMin`, `mileageMax`, and a
+friendly `label`.
 
 ## Manage dealers (web interface)
 
@@ -172,13 +186,15 @@ src/
     matcher.js       match listings against the watchlist
     store.js         JSON persistence + new-listing detection
     dealerStore.js   dealer database (CRUD, validation, seeding)
+    watchlistStore.js watchlist database (CRUD, validation, seeding)
     monitor.js       one scan cycle + scheduler
   summary.js         standalone HTML digest renderer
   server.js          Express API + serves the dashboard
   cli.js             scan / digest / watchlist commands
 public/
-  index.html/app.js  dashboard
-  dealers.html/js     dealer management interface
+  index.html/app.js     dashboard
+  watchlist.html/js      watchlist management interface
+  dealers.html/js        dealer management interface
 test/                unit tests
 ```
 
@@ -188,7 +204,11 @@ test/                unit tests
 | ------------------------ | -------------------------------------------------- |
 | `GET /api/listings`      | Current matched, active listings (+ metadata)      |
 | `GET /api/status`        | Last scan time, counts, recent scan history        |
-| `GET /api/watchlist`     | The configured watchlist                           |
+| `GET /api/watchlist`     | List all watchlist searches                        |
+| `GET /api/watchlist/:id` | Get one watchlist search                            |
+| `POST /api/watchlist`    | Add a search (make/model/color/features/year/price)|
+| `PUT /api/watchlist/:id` | Update a search                                     |
+| `DELETE /api/watchlist/:id`| Remove a search                                   |
 | `GET /api/dealers`       | List all dealers in the database                   |
 | `GET /api/dealers/:id`   | Get one dealer                                      |
 | `POST /api/dealers`      | Add a dealer (`{ name, type, url, selectors? }`)   |

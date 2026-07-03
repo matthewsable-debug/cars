@@ -21,6 +21,22 @@ export function matchesEntry(listing, entry) {
   if (entry.mileageMax != null && (listing.mileage == null || listing.mileage > entry.mileageMax)) return false;
   if (entry.mileageMin != null && (listing.mileage == null || listing.mileage < entry.mileageMin)) return false;
 
+  // Color: match against the listing's color, falling back to the title.
+  if (entry.color && !includes(listing.color, entry.color) && !includes(listing.title, entry.color)) {
+    return false;
+  }
+
+  // Features: every requested feature must appear in the listing's feature list,
+  // trim, or title (case-insensitive substring).
+  if (Array.isArray(entry.features) && entry.features.length) {
+    const haystack = norm(
+      [(listing.features || []).join(" "), listing.trim, listing.title].filter(Boolean).join(" ")
+    );
+    for (const feat of entry.features) {
+      if (feat && !haystack.includes(norm(feat))) return false;
+    }
+  }
+
   return true;
 }
 

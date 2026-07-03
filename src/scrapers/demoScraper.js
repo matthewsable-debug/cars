@@ -15,7 +15,16 @@ const MODELS = {
 };
 
 const TRIMS = ["Base", "Sport", "Limited", "Touring", "TRD Off-Road", "Type R", "Premium", "XLE"];
-const COLORS = ["#1e3a5f", "#7a1f2b", "#2d4739", "#4a4a4a", "#5a4a2b", "#2b3a4a"];
+const SWATCHES = ["#1e3a5f", "#7a1f2b", "#2d4739", "#4a4a4a", "#5a4a2b", "#2b3a4a"];
+// Real color names + a matching swatch for the SVG photo.
+const PAINT = [
+  ["White", "#e8e8e8"], ["Black", "#1a1a1a"], ["Silver", "#c0c0c0"], ["Gray", "#6b7280"],
+  ["Blue", "#1e3a8a"], ["Red", "#991b1b"], ["Green", "#14532d"], ["Beige", "#c9b896"],
+];
+const FEATURES = [
+  "AWD", "Sunroof", "Leather Seats", "Navigation", "Backup Camera", "Heated Seats",
+  "Apple CarPlay", "Adaptive Cruise", "Blind Spot Monitor", "Third Row",
+];
 
 export async function scrapeDemoDealer(dealer) {
   const makes = dealer.seedMakes || Object.keys(MODELS);
@@ -32,6 +41,8 @@ export async function scrapeDemoDealer(dealer) {
     const mileage = Math.floor(5000 + rng() * 95000);
     const basePrice = priceFor(make, model, year, mileage, rng);
     const stock = `${dealer.id.slice(0, 3).toUpperCase()}${1000 + i}`;
+    const [colorName, colorHex] = PAINT[Math.floor(rng() * PAINT.length)];
+    const features = pickFeatures(rng);
 
     const title = `${year} ${make} ${model}${trim && trim !== "Base" ? " " + trim : ""}`;
     listings.push({
@@ -42,8 +53,10 @@ export async function scrapeDemoDealer(dealer) {
       year,
       price: basePrice,
       mileage,
+      color: colorName,
+      features,
       link: `https://dealer.example/${dealer.id}/vehicle/${stock}`,
-      image: carSvg(make, model, year, COLORS[i % COLORS.length]),
+      image: carSvg(make, model, year, colorHex, SWATCHES[i % SWATCHES.length]),
       location: dealer.name,
     });
   }
@@ -66,17 +79,29 @@ function priceFor(make, model, year, mileage, rng) {
   return Math.max(6000, Math.round(price / 50) * 50);
 }
 
+// Pick 2-4 distinct features.
+function pickFeatures(rng) {
+  const pool = [...FEATURES];
+  const n = 2 + Math.floor(rng() * 3);
+  const out = [];
+  for (let i = 0; i < n && pool.length; i++) {
+    out.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
+  }
+  return out;
+}
+
 // A clean inline SVG "photo" card so listings render with no external requests.
-function carSvg(make, model, year, color) {
+// `bodyColor` paints the car so the listing's color shows; `bg` is the backdrop.
+function carSvg(make, model, year, bodyColor, bg) {
   const label = `${year} ${make}`;
   const sub = model;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="260" viewBox="0 0 400 260">
     <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="${color}"/><stop offset="1" stop-color="#111"/>
+      <stop offset="0" stop-color="${bg}"/><stop offset="1" stop-color="#111"/>
     </linearGradient></defs>
     <rect width="400" height="260" fill="url(#g)"/>
-    <g fill="#fff" opacity="0.95">
-      <path d="M60 165 q10 -40 45 -45 l90 -4 q30 0 55 28 l40 6 q22 4 22 22 l0 12 -12 0 a18 18 0 0 0 -36 0 l-120 0 a18 18 0 0 0 -36 0 l-14 0 q-8 0 -8 -12 z" opacity="0.9"/>
+    <g>
+      <path d="M60 165 q10 -40 45 -45 l90 -4 q30 0 55 28 l40 6 q22 4 22 22 l0 12 -12 0 a18 18 0 0 0 -36 0 l-120 0 a18 18 0 0 0 -36 0 l-14 0 q-8 0 -8 -12 z" fill="${bodyColor}" stroke="#0006" stroke-width="1"/>
       <circle cx="128" cy="182" r="15" fill="#111"/><circle cx="128" cy="182" r="7" fill="#ccc"/>
       <circle cx="266" cy="182" r="15" fill="#111"/><circle cx="266" cy="182" r="7" fill="#ccc"/>
     </g>

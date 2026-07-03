@@ -54,6 +54,7 @@ function renderCard(l) {
     : "";
   const price = l.price != null ? `$${l.price.toLocaleString()}` : "Call for price";
   const miles = l.mileage != null ? `${l.mileage.toLocaleString()} mi` : "—";
+  const detail = [l.color, (l.features || []).slice(0, 3).join(", ")].filter(Boolean).join(" &middot; ");
   return `<a href="${esc(l.url)}" style="text-decoration:none;color:inherit;display:block">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;margin-bottom:12px;overflow:hidden">
       <tr>
@@ -64,6 +65,7 @@ function renderCard(l) {
           <div style="font-size:15px;font-weight:700">${esc(l.title)}${newBadge}</div>
           <div style="font-size:18px;font-weight:700;color:#111827;margin-top:4px">${price}</div>
           <div style="font-size:13px;color:#6b7280;margin-top:4px">${miles} &middot; ${esc(l.dealer)}</div>
+          ${detail ? `<div style="font-size:12px;color:#6b7280;margin-top:2px">${detail}</div>` : ""}
           <div style="font-size:12px;color:#2563eb;margin-top:8px">View listing →</div>
         </td>
       </tr>

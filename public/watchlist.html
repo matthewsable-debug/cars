@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Watchlist · Car Dealer Monitor</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9A%97%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">🚗</span>
+      <div>
+        <h1>Car Dealer Monitor</h1>
+        <p class="tagline">Tell us exactly which cars to hunt for</p>
+      </div>
+    </div>
+    <nav class="nav">
+      <a href="/">Dashboard</a>
+      <a href="/watchlist.html" class="active">Watchlist</a>
+      <a href="/dealers.html">Dealers</a>
+    </nav>
+  </header>
+
+  <div class="page">
+    <div class="layout">
+      <!-- Submit / edit form -->
+      <form class="panel" id="wlForm" autocomplete="off">
+        <h2 id="formTitle">Add a car to find</h2>
+        <p class="hint">Fill in only the criteria that matter. Blank fields match anything. A listing must satisfy every field you set.</p>
+
+        <input type="hidden" id="editId" value="">
+
+        <div class="field">
+          <label for="label">Label (optional)</label>
+          <input type="text" id="label" placeholder="e.g. Dream Tacoma">
+          <div class="sub">A friendly name for this search. Defaults to make + model.</div>
+        </div>
+
+        <div class="row2">
+          <div class="field"><label for="make">Make</label><input type="text" id="make" placeholder="Toyota"></div>
+          <div class="field"><label for="model">Model</label><input type="text" id="model" placeholder="Tacoma"></div>
+        </div>
+
+        <div class="row2">
+          <div class="field"><label for="trim">Trim</label><input type="text" id="trim" placeholder="TRD Off-Road"></div>
+          <div class="field"><label for="color">Color</label><input type="text" id="color" placeholder="Blue"></div>
+        </div>
+
+        <div class="row2">
+          <div class="field"><label for="yearMin">Year from</label><input type="number" id="yearMin" min="1980" max="2100" placeholder="2019"></div>
+          <div class="field"><label for="yearMax">Year to</label><input type="number" id="yearMax" min="1980" max="2100" placeholder="2024"></div>
+        </div>
+
+        <div class="row2">
+          <div class="field"><label for="priceMax">Max price ($)</label><input type="number" id="priceMax" min="0" placeholder="42000"></div>
+          <div class="field"><label for="mileageMax">Max mileage</label><input type="number" id="mileageMax" min="0" placeholder="60000"></div>
+        </div>
+
+        <div class="field">
+          <label for="features">Must-have features</label>
+          <input type="text" id="features" placeholder="AWD, Sunroof, Leather Seats">
+          <div class="sub">Comma-separated. Every listed feature must be present.</div>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn primary" id="saveBtn">Add to watchlist</button>
+          <button type="button" class="btn small" id="cancelBtn" style="display:none">Cancel</button>
+        </div>
+
+        <div class="notice" id="notice"></div>
+      </form>
+
+      <!-- List -->
+      <div>
+        <div class="panel" style="margin-bottom:16px">
+          <h2>Your watchlist <span id="count" style="color:var(--muted);font-weight:500"></span></h2>
+          <p class="hint">Every scan checks all dealers against these searches. Matches show up on the dashboard and in the digest.</p>
+        </div>
+        <div class="dealer-list" id="list"></div>
+        <div class="empty" id="empty" hidden>No searches yet. Add one on the left.</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/watchlist.js"></script>
+</body>
+</html>
