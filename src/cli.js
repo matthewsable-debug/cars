@@ -4,8 +4,12 @@ import { fileURLToPath } from "node:url";
 import { runScan } from "./core/monitor.js";
 import { renderDigest } from "./summary.js";
 import { watchlist } from "./config/watchlist.js";
-import { dealers } from "./config/dealers.js";
+import { listDealers } from "./core/dealerStore.js";
 import { entryLabel } from "./core/matcher.js";
+
+// Read dealers from the persisted database (seeded from config on first run),
+// so the CLI and the web UI operate on the same set of dealers.
+const dealers = listDealers();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const cmd = process.argv[2] || "scan";

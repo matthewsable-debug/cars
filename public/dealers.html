@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dealers · Car Dealer Monitor</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9A%97%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">🚗</span>
+      <div>
+        <h1>Car Dealer Monitor</h1>
+        <p class="tagline">Manage the dealer websites you monitor</p>
+      </div>
+    </div>
+    <nav class="nav">
+      <a href="/">Dashboard</a>
+      <a href="/dealers.html" class="active">Dealers</a>
+    </nav>
+  </header>
+
+  <div class="page">
+    <div class="layout">
+      <!-- Submit / edit form -->
+      <form class="panel" id="dealerForm" autocomplete="off">
+        <h2 id="formTitle">Add a dealer</h2>
+        <p class="hint">Submit a dealer's inventory page URL. Selectors are optional — sensible defaults are applied, and you can test before saving.</p>
+
+        <input type="hidden" id="editId" value="">
+
+        <div class="field">
+          <label for="name">Dealer name</label>
+          <input type="text" id="name" placeholder="e.g. Downtown Toyota" required>
+        </div>
+
+        <div class="field">
+          <label for="type">Type</label>
+          <select id="type">
+            <option value="html">Website (HTML inventory page)</option>
+            <option value="demo">Demo (generated sample inventory)</option>
+          </select>
+        </div>
+
+        <div class="field" id="urlField">
+          <label for="url">Inventory page URL</label>
+          <input type="url" id="url" placeholder="https://www.dealer.com/inventory/used">
+          <div class="sub">The page that lists the dealer's vehicles.</div>
+        </div>
+
+        <details class="advanced" id="advanced">
+          <summary>Advanced: extraction selectors</summary>
+          <div class="sub" style="margin:8px 0">CSS selectors used to read each vehicle card. Leave blank to use defaults.</div>
+          <div class="field"><label for="s_card">Card selector</label><input type="text" id="s_card" placeholder=".vehicle-card"></div>
+          <div class="row2">
+            <div class="field"><label for="s_title">Title</label><input type="text" id="s_title" placeholder=".vehicle-title"></div>
+            <div class="field"><label for="s_price">Price</label><input type="text" id="s_price" placeholder=".price"></div>
+          </div>
+          <div class="row2">
+            <div class="field"><label for="s_mileage">Mileage</label><input type="text" id="s_mileage" placeholder=".mileage"></div>
+            <div class="field"><label for="s_link">Link (a[href])</label><input type="text" id="s_link" placeholder="a.vehicle-link"></div>
+          </div>
+          <div class="field"><label for="s_image">Image (img[src])</label><input type="text" id="s_image" placeholder="img"></div>
+          <div class="row2">
+            <div class="field"><label for="p_param">Pagination param</label><input type="text" id="p_param" placeholder="?page={page}"></div>
+            <div class="field"><label for="p_max">Max pages</label><input type="number" id="p_max" min="1" placeholder="1"></div>
+          </div>
+        </details>
+
+        <div class="field">
+          <label class="switch"><input type="checkbox" id="enabled" checked> Enabled (include in scans)</label>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn primary" id="saveBtn">Add dealer</button>
+          <button type="button" class="btn subtle" id="testBtn">Test scrape</button>
+          <button type="button" class="btn small" id="cancelBtn" style="display:none">Cancel</button>
+        </div>
+
+        <div class="notice" id="notice"></div>
+      </form>
+
+      <!-- List -->
+      <div>
+        <div class="panel" style="margin-bottom:16px">
+          <h2>Dealer database <span id="count" style="color:var(--muted);font-weight:500"></span></h2>
+          <p class="hint">These dealers are stored in the database and scanned on each cycle. Toggle to include/exclude without deleting.</p>
+        </div>
+        <div class="dealer-list" id="list"></div>
+        <div class="empty" id="empty" hidden>No dealers yet. Add one on the left.</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/dealers.js"></script>
+</body>
+</html>

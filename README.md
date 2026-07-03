@@ -70,10 +70,31 @@ it satisfies every field present (missing fields mean "any"):
 Supported fields: `make`, `model`, `trim`, `yearMin`, `yearMax`, `priceMin`,
 `priceMax`, `mileageMin`, `mileageMax`, and a friendly `label`.
 
-## Configure dealers
+## Manage dealers (web interface)
 
-Edit `src/config/dealers.js`. To monitor a real dealer, add an `html` dealer and
-point the selectors at its inventory page's listing cards:
+The easiest way to add and manage dealers is the built-in **Dealers** page at
+**http://localhost:3000/dealers.html** (linked from the dashboard nav). From
+there you can:
+
+- **Submit a dealer website** — enter a name and its inventory page URL. Sensible
+  extraction selectors are applied by default; expand **Advanced** to customize
+  them.
+- **Test before saving** — the **Test scrape** button fetches the page and reports
+  how many vehicles it found (and the first one), so you can validate the URL and
+  selectors up front.
+- **Enable / disable** a dealer without deleting it (toggle the switch).
+- **Edit** or **Delete** any dealer.
+
+Dealers are persisted in a JSON database at `data/dealers.json`, seeded on first
+run from `src/config/dealers.js`. Once seeded, the database is the source of truth
+and every scan reads from it, so changes take effect on the next cycle (or the
+next **Scan now**).
+
+## Configure dealers (in code)
+
+You can also edit `src/config/dealers.js` (used to seed the database). To monitor
+a real dealer, add an `html` dealer and point the selectors at its inventory
+page's listing cards:
 
 ```js
 {
@@ -140,7 +161,7 @@ provider's API (SendGrid, SES, Postmark, etc.).
 src/
   config/
     watchlist.js     the cars you want (criteria)
-    dealers.js       the dealer sites to monitor
+    dealers.js       seed dealers (loaded into the database on first run)
   scrapers/
     index.js         adapter registry + orchestration
     http.js          fetch wrapper (UA, timeout, retry)
@@ -150,24 +171,32 @@ src/
     listing.js       normalize + parse listings, stable ids
     matcher.js       match listings against the watchlist
     store.js         JSON persistence + new-listing detection
+    dealerStore.js   dealer database (CRUD, validation, seeding)
     monitor.js       one scan cycle + scheduler
   summary.js         standalone HTML digest renderer
   server.js          Express API + serves the dashboard
   cli.js             scan / digest / watchlist commands
-public/              dashboard (HTML/CSS/JS)
+public/
+  index.html/app.js  dashboard
+  dealers.html/js     dealer management interface
 test/                unit tests
 ```
 
 ## API
 
-| Endpoint            | Description                                        |
-| ------------------- | -------------------------------------------------- |
-| `GET /api/listings` | Current matched, active listings (+ metadata)      |
-| `GET /api/status`   | Last scan time, counts, recent scan history        |
-| `GET /api/watchlist`| The configured watchlist                           |
-| `GET /api/dealers`  | Configured dealers                                 |
-| `POST /api/scan`    | Trigger a scan immediately                         |
-| `GET /api/digest`   | Standalone HTML summary of matches                 |
+| Endpoint                 | Description                                        |
+| ------------------------ | -------------------------------------------------- |
+| `GET /api/listings`      | Current matched, active listings (+ metadata)      |
+| `GET /api/status`        | Last scan time, counts, recent scan history        |
+| `GET /api/watchlist`     | The configured watchlist                           |
+| `GET /api/dealers`       | List all dealers in the database                   |
+| `GET /api/dealers/:id`   | Get one dealer                                      |
+| `POST /api/dealers`      | Add a dealer (`{ name, type, url, selectors? }`)   |
+| `PUT /api/dealers/:id`   | Update a dealer (e.g. `{ enabled: false }`)        |
+| `DELETE /api/dealers/:id`| Remove a dealer                                     |
+| `POST /api/dealers/test` | Test-scrape a dealer config without saving         |
+| `POST /api/scan`         | Trigger a scan immediately                         |
+| `GET /api/digest`        | Standalone HTML summary of matches                 |
 
 ## License
 
