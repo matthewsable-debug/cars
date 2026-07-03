@@ -52,9 +52,23 @@ export async function renderPage(url, { waitSelector, timeoutMs = 30000 } = {}) 
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: timeoutMs });
     // Give JS-rendered inventory a chance to populate.
     if (waitSelector) {
-      await page.waitForSelector(waitSelector, { timeout: 8000 }).catch(() => {});
+      await page.waitForSelector(waitSelector, { timeout: 10000 }).catch(() => {});
     }
-    await page.waitForLoadState("networkidle", { timeout: 6000 }).catch(() => {});
+    await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
+    // Many dealer sites inject inventory via AJAX after load; wait until a
+    // repeated card-like structure appears (links with images), then settle.
+    await page
+      .waitForFunction(
+        () => {
+          const links = document.querySelectorAll("a[href]");
+          let withImg = 0;
+          for (const a of links) if (a.querySelector("img")) withImg++;
+          return withImg >= 4 || document.body.innerText.length > 3000;
+        },
+        { timeout: 8000 }
+      )
+      .catch(() => {});
+    await page.waitForTimeout(1200); // final settle for late AJAX
     return await page.content();
   } finally {
     await context.close().catch(() => {});
