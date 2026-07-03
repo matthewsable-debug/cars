@@ -1,10 +1,13 @@
 # Render Blueprint — deploy with one click from the Render dashboard
 # (New → Blueprint → point at this repo). Gives you a public https URL.
 #
+# Runs the DOCKER image (Dockerfile), which is based on the official Playwright
+# image and bundles Chromium — so the headless-browser scraper works (Render's
+# native Node runtime does NOT include a browser). Chromium needs real memory,
+# so a Standard instance (2 GB) is used, not the 512 MB Starter.
+#
 # Durability across redeploys comes from the managed Postgres database below:
-# the app mirrors every change to it and restores on each deploy. No persistent
-# disk needed (so this works on any instance type) — the local JSON files are
-# just a throwaway cache rebuilt from the database on boot.
+# the app mirrors every change to it and restores on each deploy.
 databases:
   - name: car-monitor-db
     plan: basic-256mb
@@ -12,10 +15,9 @@ databases:
 services:
   - type: web
     name: car-dealer-monitor
-    runtime: node
-    plan: starter
-    buildCommand: npm ci
-    startCommand: npm start
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: standard
     healthCheckPath: /healthz
     autoDeploy: true
     envVars:
