@@ -65,3 +65,21 @@ test("scrapeDealer auto-discovers inventory from a dealer's main URL", async () 
   assert.equal(result.listings.length, 2);
   assert.equal(result.listings[0].make, "Toyota");
 });
+
+test("discoverInventoryUrl probes common paths when the nav has no inventory link", async () => {
+  // An SPA homepage whose nav is client-side rendered: the plain HTML has no
+  // inventory-keyword link to score, but /inventory still resolves to cars.
+  const SPA_HOME = `<!doctype html><html><body>
+    <a href="/contact">Contact</a><a href="/finance">Financing</a>
+  </body></html>`;
+  const { countListings } = await import("../src/scrapers/autoExtract.js");
+  const AUTO_INV = `<!doctype html><html><body>
+    <div class="v"><a href="/vehicles/1-2020-porsche-911"><img src="/1.jpg"><h3>2020 Porsche 911</h3></a><span>$120,000</span></div>
+    <div class="v"><a href="/vehicles/2-2019-bmw-m5"><img src="/2.jpg"><h3>2019 BMW M5</h3></a><span>$70,000</span></div>
+  </body></html>`;
+  const fetchImpl = async (url) => (/\/inventory\/?$/.test(url) ? AUTO_INV : SPA_HOME);
+  const res = await discoverInventoryUrl("https://spa-dealer.test/", { fetchImpl, countListings });
+  assert.equal(res.verified, true);
+  assert.equal(res.probed, true);
+  assert.match(res.url, /\/inventory$/);
+});

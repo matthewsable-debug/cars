@@ -80,9 +80,49 @@ export async function discoverInventoryUrl(
     }
   }
 
-  // 4. Fallbacks.
+  // 4. Nothing scored (or nothing verified): probe well-known inventory paths on
+  // the same origin. Many SPA dealer sites render their nav client-side, so the
+  // plain homepage HTML has no inventory link to score — but /inventory (etc.)
+  // still resolves. Verify each so we only adopt one that actually lists cars.
+  if (canVerify) {
+    for (const path of COMMON_PATHS) {
+      const guess = originPlus(home, path);
+      if (!guess || seen.has(guess)) continue;
+      seen.add(guess);
+      try {
+        const gHtml = await fetchImpl(guess);
+        if (listingCount(gHtml, guess) >= 2) {
+          return { url: guess, candidates: scored, verified: true, probed: true };
+        }
+      } catch {
+        /* try next path */
+      }
+    }
+  }
+
+  // 5. Fallbacks.
   if (scored.length) return { url: scored[0].url, candidates: scored, verified: false };
   return { url: home, candidates: [], verified: false };
+}
+
+// Inventory paths commonly used across dealer platforms, best-first. Kept short
+// so a failed discovery doesn't fetch (and possibly headless-render) too many.
+const COMMON_PATHS = [
+  "/inventory",
+  "/inventory/",
+  "/vehicles",
+  "/used-vehicles",
+  "/pre-owned",
+  "/inventory.html",
+];
+
+// origin (scheme + host) of `base` joined with an absolute `path`.
+function originPlus(base, path) {
+  try {
+    return new URL(path, new URL(base).origin).toString();
+  } catch {
+    return "";
+  }
 }
 
 function scoreLink(url, text) {
