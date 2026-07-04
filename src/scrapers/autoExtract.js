@@ -18,6 +18,7 @@ export function autoExtractListings(html, pageUrl) {
   const candidates = [
     extractJsonLd($, pageUrl),
     extractEmbeddedJson($, pageUrl),
+    extractLeafLinks($, pageUrl),
     extractHeuristic($, pageUrl),
   ];
   let best = [];
@@ -334,11 +335,25 @@ const DETAIL_SLUG_RE =
   /\/(?:vehicles?|inventory|listings?|cars?|autos?|stock|detail|for-sale)\/[^/?#]+|\/[A-HJ-NPR-Z0-9]{17}(?:[/?#]|$)/i;
 // "since 1986", "est. 1986", "© 2024" etc. — years that are NOT model years.
 const NON_MODEL_YEAR = /\b(since|est\.?|established|founded|copyright|©|all rights)\b/i;
+// A link to a SPECIFIC vehicle: an inventory/vehicle path whose slug carries a
+// model year (e.g. /inventory/porsche-930/1989-porsche-930-s-slantnose) or a
+// 17-char VIN. This is stricter than DETAIL_SLUG_RE so it does NOT match model
+// CATEGORY pages like /inventory/porsche-930/ (no year in the slug) — letting us
+// tell a leaf car page from a category hub without site-specific selectors.
+const LEAF_DETAIL_RE =
+  /\/(?:vehicles?|inventory|listings?|cars?|autos?|stock|detail|for-sale)\/[^?#]*?(?:19|20)\d{2}[^?#]*|\/[A-HJ-NPR-Z0-9]{17}(?:[/?#]|$)/i;
 
 // Only treat a card as sold on a clear signal: an all-caps SOLD badge, or an
 // explicit phrase. Avoids false positives from prose like "only 60 were sold".
 export function detectSold(text) {
-  return /\bSOLD\b/.test(text) || /sale[\s-]?pending|sold[\s-]?out|no longer available/i.test(text);
+  // An uppercase SOLD badge, detected at a case boundary so it still matches when
+  // minified markup abuts it to a title or price ("CabrioletSOLD", "$189,000SOLD")
+  // but not a longer all-caps word (RESOLD/UNSOLD/OVERSOLD — preceded by A-Z) or
+  // lowercase prose ("resold", "Soldier" — followed by a-z).
+  return (
+    /(?<![A-Z])SOLD(?![a-z])/.test(text) ||
+    /sale[\s-]?pending|sold[\s-]?out|no longer available/i.test(text)
+  );
 }
 
 // A title names a specific vehicle: it has a model year, a real word beside it
@@ -348,6 +363,87 @@ function looksLikeVehicleTitle(title) {
   if (NON_MODEL_YEAR.test(title)) return false;
   const words = title.replace(/[^a-zA-Z ]+/g, " ").split(/\s+/).filter((w) => w.length > 1);
   return words.length >= 1; // at least one make/model-ish word besides the year
+}
+
+// Per-link extraction for LIST pages. A model page like /inventory/porsche-930/
+// is a grid of many cars, but each car's link is often a plain title/text link
+// with the photo in a separate wrapper — so extractHeuristic (which climbs to
+// the nearest ancestor holding an image AND a year) collapses every car into the
+// one shared grid container. Here we instead make one listing per LEAF car link
+// (a slug bearing a model year), reading each card's photo/price/sold from a
+// tight per-card scope so a neighboring SOLD car can't taint an available one.
+function extractLeafLinks($, pageUrl) {
+  const byUrl = new Map();
+
+  $("a[href]").each((_, a) => {
+    const $a = $(a);
+    const href = $a.attr("href") || "";
+    if (!LEAF_DETAIL_RE.test(href)) return;
+    const url = abs(href, pageUrl).split("#")[0];
+    if (byUrl.has(url)) return;
+
+    // Title: the link's own text if it names a year; else the nearest heading or
+    // short text in the card; else derive it from the URL slug.
+    let title = clean($a.text());
+    if (!YEAR_RE.test(title)) {
+      let el = $a;
+      for (let i = 0; i < 4 && el.length; i++) {
+        const h = clean(el.find("h1,h2,h3,h4,h5,[class*=title],[class*=name],[class*=heading]").first().text());
+        if (h && YEAR_RE.test(h) && h.length < 120) { title = h; break; }
+        el = el.parent();
+      }
+    }
+    if (!YEAR_RE.test(title)) {
+      const slug = decodeURIComponent(url).split(/[/?]/).filter(Boolean).pop() || "";
+      const fromSlug = clean(slug.replace(/[-_]+/g, " "));
+      if (YEAR_RE.test(fromSlug)) title = fromSlug;
+    }
+    if (title.length > 100) title = title.slice(0, 100).replace(/\s+\S*$/, "");
+    if (!looksLikeVehicleTitle(title)) return;
+
+    // Tight per-card scope: climb only while the ancestor still isolates THIS one
+    // leaf link. Once a parent contains 2+ leaf links it groups several cards, so
+    // we stop — this keeps price/photo/sold local to the single card.
+    const scope = cardScope($, $a);
+    const scopeText = clean(scope.text()).slice(0, 400);
+    let img = scope.find("img").first();
+    const image = abs(
+      img.attr("src") || img.attr("data-src") || img.attr("data-lazy") || img.attr("data-original") || "",
+      pageUrl
+    );
+    const priceMatch = scopeText.match(PRICE_RE);
+    const mileage = (scopeText.match(/([\d,]{3,})\s*(?:mi|miles|mileage|km)\b/i) || [])[1];
+
+    byUrl.set(url, {
+      title,
+      description: scopeText,
+      price: priceMatch ? priceMatch[0] : null,
+      year: (title.match(YEAR_RE) || [])[0],
+      mileage,
+      link: url,
+      image,
+      sold: detectSold(scopeText || title),
+    });
+  });
+
+  return dedupe([...byUrl.values()]);
+}
+
+// Nearest ancestor of a leaf link that still contains only that one leaf link.
+function cardScope($, $a) {
+  let scope = $a;
+  let el = $a;
+  for (let i = 0; i < 6; i++) {
+    const parent = el.parent();
+    if (!parent.length) break;
+    const leafCount = parent
+      .find("a[href]")
+      .filter((_, x) => LEAF_DETAIL_RE.test($(x).attr("href") || "")).length;
+    if (leafCount > 1) break; // parent groups multiple cards — don't cross the boundary
+    el = parent;
+    scope = parent;
+  }
+  return scope;
 }
 
 function extractHeuristic($, pageUrl) {
@@ -375,6 +471,17 @@ function extractHeuristic($, pageUrl) {
 
     const node = card.get(0);
     if (byContainer.has(node)) return;
+
+    // Guard against climbing into a page/list wrapper (e.g. reaching <body> from
+    // a footer link): a single card links to at most ONE specific vehicle. If the
+    // resolved container holds multiple distinct leaf car links, it groups several
+    // cards — skip it so a real per-card path (extractLeafLinks) can handle them.
+    const leafs = new Set();
+    card.find("a[href]").each((_, el) => {
+      const h = $(el).attr("href") || "";
+      if (LEAF_DETAIL_RE.test(h)) leafs.add(absOrRaw(h, pageUrl).split("#")[0]);
+    });
+    if (leafs.size > 1) return;
 
     const ct = card.text();
     const year = (ct.match(YEAR_RE) || [])[0];

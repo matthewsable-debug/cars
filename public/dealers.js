@@ -33,6 +33,8 @@ function debugSummary(d) {
     `jsonLd=${d.jsonLd}`, `embJson=${d.embeddedJson}`,
   ];
   if (d.subLinksFound != null) parts.push(`subLinks=${d.subLinksFound}`);
+  if (d.rawCars != null) parts.push(`rawCars=${d.rawCars}`);
+  if (d.total != null) parts.push(`avail=${d.total}`);
   if (d.crawled?.length) parts.push(`crawled=[${d.crawled.join(", ")}]`);
   if (d.detailSamples?.length) parts.push(`samples=${d.detailSamples.slice(0, 4).join(" | ")}`);
   if (d.yearSnippets?.length) parts.push(`years=${d.yearSnippets.slice(0, 3).join(" | ")}`);

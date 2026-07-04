@@ -210,6 +210,36 @@ test("scrapeDealer crawls a hub inventory page into model sub-pages", async () =
   assert.equal(result.listings.length, 2, "aggregated cars from both model pages");
   assert.ok(result.listings.every((l) => matchesEntryPorsche(l)));
 });
+// A model page (e.g. /inventory/porsche-930/) that lists MANY cars, where each
+// car's link is a plain title link and its photo sits in a separate wrapper.
+// The old "climb to the nearest ancestor with an image + year" heuristic
+// collapsed every card into the one shared grid container and returned a single
+// car; the per-leaf-link path must recover all of them, with correct sold flags
+// even when minified markup abuts the SOLD badge to a price/title.
+const LIST_PAGE = `<!doctype html><html><body><section class="grid">
+  <div class="card"><div class="media"><img src="/1.jpg"></div><a class="title" href="/inventory/porsche-930/1989-porsche-930-s-slantnose">1989 930 S Slantnose</a><div class="price">$295,500</div></div>
+  <div class="card"><div class="media"><img src="/2.jpg"></div><a class="title" href="/inventory/porsche-930/1988-porsche-930-coupe">1988 930 Coupe</a><div class="price">$189,000</div><span class="badge">SOLD</span></div>
+  <div class="card"><div class="media"><img src="/3.jpg"></div><a class="title" href="/inventory/porsche-930/1987-porsche-930-targa">1987 930 Targa</a><div class="price">$210,000</div></div>
+  <div class="card"><div class="media"><img src="/4.jpg"></div><a class="title" href="/inventory/porsche-930/1986-porsche-930-cab">1986 930 Cabriolet</a><span class="badge">SOLD</span></div>
+</section><footer><a href="/inventory/porsche-911/">More 911s</a></footer></body></html>`;
+
+test("per-leaf-link extraction recovers a full list page (not just one card)", () => {
+  const items = autoExtractListings(LIST_PAGE, "https://sloan.test/inventory/porsche-930/");
+  assert.equal(items.length, 4, "one listing per car, not collapsed to a single card");
+  const sold = items.filter((i) => i.sold);
+  assert.equal(sold.length, 2, "both SOLD badges detected despite abutting markup");
+  // The footer category link (/inventory/porsche-911/, no year) is not a car.
+  assert.ok(items.every((i) => /porsche-930/.test(i.link)));
+});
+
+test("model CATEGORY links (no year in slug) are not mistaken for cars", () => {
+  const HUB = `<html><body>
+    <a href="/inventory/porsche-930/"><img src="/c/930.jpg">930</a>
+    <a href="/inventory/porsche-991/"><img src="/c/991.jpg">991</a>
+  </body></html>`;
+  assert.equal(autoExtractListings(HUB, "https://sloan.test/inventory/").length, 0);
+});
+
 function matchesEntryPorsche(l) {
   return /Porsche/i.test(l.title);
 }

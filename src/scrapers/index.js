@@ -166,7 +166,10 @@ async function scrapeWeb(dealer, adapter, { fetchFn, jsonFetch, browser, debug }
   }
 
   const listings = [...byId.values()].filter((l) => !l.sold);
-  if (dbg) dbg.total = listings.length;
+  if (dbg) {
+    dbg.rawCars = byId.size; // unique cars found before dropping sold ones
+    dbg.total = listings.length; // available cars returned
+  }
   return { dealer, listings, error: null, discoveredInventoryUrl, source: "html", debug: dbg };
 }
 

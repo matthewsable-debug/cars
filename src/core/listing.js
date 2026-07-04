@@ -32,7 +32,9 @@ export function normalizeListing(raw, dealer) {
   // Trust the scraper's sold flag; otherwise only an explicit SOLD/sale-pending
   // marker in the title — not the bare word "sold" buried in a description.
   const sold =
-    raw.sold === true || /\bSOLD\b/.test(title) || /sale[\s-]?pending|sold[\s-]?out/i.test(title);
+    raw.sold === true ||
+    /(?<![A-Z])SOLD(?![a-z])/.test(title) ||
+    /sale[\s-]?pending|sold[\s-]?out/i.test(title);
 
   const idBasis = `${dealer.id}::${url || title}`;
   const id = crypto.createHash("sha1").update(idBasis).digest("hex").slice(0, 16);
