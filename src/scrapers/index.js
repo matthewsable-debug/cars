@@ -62,17 +62,24 @@ export async function scrapeDealer(dealer, { fetchImpl, jsonFetch, debug } = {})
     if (dealer.type === "browser") attempts.push({ browser: true }); // headless fallback
   }
 
-  let last = { dealer, listings: [], error: null };
+  // Keep the BEST attempt (most cars), not merely the first non-empty one. Plain
+  // HTTP often yields a token car or two from a page's JSON-LD while the real
+  // grid is JavaScript-rendered — so a thin plain result must not stop us from
+  // rendering with the browser. Stop early only once a result looks healthy.
+  const ENOUGH = 3;
+  let best = { dealer, listings: [], error: null };
   for (const attempt of attempts) {
     try {
       const res = await scrapeWeb(dealer, adapter, { ...attempt, debug });
-      if (res.listings.length > 0) return res; // success — stop here
-      last = res;
+      if (res.listings.length > best.listings.length) best = res;
+      if (best.listings.length >= ENOUGH) return best; // healthy — no need to try more
     } catch (err) {
-      last = { dealer, listings: [], error: err.message || String(err) };
+      // Preserve a partial success from an earlier attempt; record the error only
+      // if we still have nothing (e.g. plain empty + browser blocked).
+      if (best.listings.length === 0) best = { dealer, listings: [], error: err.message || String(err) };
     }
   }
-  return last;
+  return best;
 }
 
 // Run discovery → JSON feed → HTML extraction for a web dealer using one fetch
