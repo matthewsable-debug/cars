@@ -138,7 +138,9 @@ async function scrapeWeb(dealer, adapter, { fetchFn, jsonFetch, browser, debug }
   const byId = new Map();
   for (const r of autoExtractListings(html, invUrl)) addListing(byId, r, dealer);
 
-  const dbg = debug ? { inventoryUrl: invUrl, hubCars: byId.size, ...diagnose(html, invUrl) } : null;
+  const dbg = debug
+    ? { inventoryUrl: invUrl, fetchMode: browser ? "browser" : "plain", hubCars: byId.size, ...diagnose(html, invUrl) }
+    : null;
 
   // "Hub" inventory pages list model categories rather than cars. If we found
   // little, follow the deeper inventory links (categories / vehicle pages) and
@@ -154,11 +156,13 @@ async function scrapeWeb(dealer, adapter, { fetchFn, jsonFetch, browser, debug }
     const deadline = Date.now() + CRAWL_BUDGET_MS;
     await mapLimit(subs, CRAWL_CONCURRENCY, async (sub) => {
       if (Date.now() > deadline) return;
-      const before = byId.size;
       try {
         const subHtml = await fetchImpl(sub);
-        for (const r of autoExtractListings(subHtml, sub)) addListing(byId, r, dealer);
-        if (dbg) dbg.crawled.push(`${pathOf(sub)}:${byId.size - before}`);
+        // Count what THIS page yields on its own (deduped per page) — a shared-map
+        // size delta is unreliable under concurrency and misreports per-page hits.
+        const found = autoExtractListings(subHtml, sub);
+        for (const r of found) addListing(byId, r, dealer);
+        if (dbg) dbg.crawled.push(`${pathOf(sub)}:${found.length}`);
       } catch {
         if (dbg) dbg.crawled.push(`${pathOf(sub)}:err`);
       }

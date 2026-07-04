@@ -27,16 +27,19 @@ function notify(msg, kind = "ok") {
 function debugSummary(d) {
   if (!d) return "";
   const parts = [
+    d.fetchMode ? `fetch=${d.fetchMode}` : null,
+    d.bytes != null ? `bytes=${d.bytes}` : null,
     `hubCars=${d.hubCars}`,
     `links=${d.links}`, `imgs=${d.images}`,
     `vehLinks=${d.detailLinks}`, `prices=${d.prices}`,
     `jsonLd=${d.jsonLd}`, `embJson=${d.embeddedJson}`,
-  ];
+  ].filter(Boolean);
   if (d.subLinksFound != null) parts.push(`subLinks=${d.subLinksFound}`);
   if (d.rawCars != null) parts.push(`rawCars=${d.rawCars}`);
   if (d.total != null) parts.push(`avail=${d.total}`);
   if (d.crawled?.length) parts.push(`crawled=[${d.crawled.join(", ")}]`);
   if (d.detailSamples?.length) parts.push(`samples=${d.detailSamples.slice(0, 4).join(" | ")}`);
+  if (d.htmlHead) parts.push(`head="${d.htmlHead}"`);
   if (d.yearSnippets?.length) parts.push(`years=${d.yearSnippets.slice(0, 3).join(" | ")}`);
   return ` · DIAG: ${parts.join(" · ")}`;
 }

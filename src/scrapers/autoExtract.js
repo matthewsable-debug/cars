@@ -48,6 +48,9 @@ export function diagnose(html, pageUrl) {
   while ((m = re.exec(body)) && yearSnippets.length < 4) yearSnippets.push(clean(m[0]).slice(0, 48));
   return {
     bytes: html.length,
+    // First readable text of the page — tells an empty/blocked response ("", a
+    // challenge/Access-Denied page) apart from a real page that just has no cars.
+    htmlHead: (clean($("title").text() + " | " + body) || clean(html)).slice(0, 90),
     links: $("a[href]").length,
     images: $("img").length,
     detailLinks: detail.length,
