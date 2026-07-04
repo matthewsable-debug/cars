@@ -28,7 +28,11 @@ export function normalizeListing(raw, dealer) {
   const mileage = toInt(raw.mileage);
   const color = clean(raw.color);
   const features = normalizeFeatures(raw.features);
-  const sold = raw.sold === true || /\bsold\b|sale[\s-]?pending/i.test(title);
+  const description = clean(raw.description);
+  // Trust the scraper's sold flag; otherwise only an explicit SOLD/sale-pending
+  // marker in the title — not the bare word "sold" buried in a description.
+  const sold =
+    raw.sold === true || /\bSOLD\b/.test(title) || /sale[\s-]?pending|sold[\s-]?out/i.test(title);
 
   const idBasis = `${dealer.id}::${url || title}`;
   const id = crypto.createHash("sha1").update(idBasis).digest("hex").slice(0, 16);
@@ -45,6 +49,7 @@ export function normalizeListing(raw, dealer) {
     mileage,
     color,
     features,
+    description,
     sold,
     title,
     url,

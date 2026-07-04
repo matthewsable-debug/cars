@@ -178,9 +178,9 @@ function pathOf(url) {
   }
 }
 
-const MAX_SUBPAGES = 8;
-const CRAWL_CONCURRENCY = 4;
-const CRAWL_BUDGET_MS = 25000;
+const MAX_SUBPAGES = 18;
+const CRAWL_CONCURRENCY = 5;
+const CRAWL_BUDGET_MS = 40000;
 
 function addListing(byId, raw, dealer) {
   const l = normalizeListing(raw, dealer);

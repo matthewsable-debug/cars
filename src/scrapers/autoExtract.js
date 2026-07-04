@@ -335,6 +335,12 @@ const DETAIL_SLUG_RE =
 // "since 1986", "est. 1986", "© 2024" etc. — years that are NOT model years.
 const NON_MODEL_YEAR = /\b(since|est\.?|established|founded|copyright|©|all rights)\b/i;
 
+// Only treat a card as sold on a clear signal: an all-caps SOLD badge, or an
+// explicit phrase. Avoids false positives from prose like "only 60 were sold".
+export function detectSold(text) {
+  return /\bSOLD\b/.test(text) || /sale[\s-]?pending|sold[\s-]?out|no longer available/i.test(text);
+}
+
 // A title names a specific vehicle: it has a model year, a real word beside it
 // (a make/model), and isn't a "founded/since/copyright <year>" marketing phrase.
 function looksLikeVehicleTitle(title) {
@@ -386,12 +392,14 @@ function extractHeuristic($, pageUrl) {
     const priceMatch = ct.match(PRICE_RE);
     if (!hasDetail && !priceMatch) return;
 
-    // Title: the link text if it names the vehicle, else a heading in the card.
-    let title = text && YEAR_RE.test(text) ? text : clean(card.find("h1,h2,h3,h4,[class*=title],[class*=name]").first().text());
-    if (!title) title = text;
+    // Title: prefer the SHORTEST year-bearing candidate (a heading or the link
+    // text) — that's the vehicle's name, not the long description blob.
+    const heading = clean(card.find("h1,h2,h3,h4,h5,[class*=title],[class*=name],[class*=heading]").first().text());
+    const cands = [heading, text].filter((c) => c && YEAR_RE.test(c)).sort((a, b) => a.length - b.length);
+    let title = cands[0] || heading || text;
     if (!title) return;
-    // If the title lacks the year (year is in a separate element), prepend it.
     if (!YEAR_RE.test(title)) title = `${year} ${title}`.trim();
+    if (title.length > 100) title = title.slice(0, 100).replace(/\s+\S*$/, ""); // trim a blob
     if (!looksLikeVehicleTitle(title)) return;
 
     const img = card.find("img").first();
@@ -401,16 +409,18 @@ function extractHeuristic($, pageUrl) {
     );
     const linkHref = startIsDetail ? href : descDetail && descDetail.length ? descDetail.attr("href") : href;
     const mileage = (ct.match(/([\d,]{3,})\s*(?:mi|miles|mileage|km)\b/i) || [])[1];
-    const sold = /\b(sold|sale[\s-]?pending|no longer available)\b/i.test(ct);
 
     byContainer.set(node, {
       title,
+      // Full card text (capped) — used for matching (a car's make may only appear
+      // in its description, e.g. a Porsche-only dealer that names cars "930 S").
+      description: clean(ct).slice(0, 400),
       price: priceMatch ? priceMatch[0] : null, // optional — POA classics have none
       year,
       mileage,
       link: abs(linkHref, pageUrl),
       image,
-      sold,
+      sold: detectSold(ct),
     });
   });
 

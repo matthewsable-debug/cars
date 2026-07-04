@@ -6,15 +6,16 @@
 // { model: "3 Series" } matches a listing titled "BMW 330i 3 Series".
 
 export function matchesEntry(listing, entry) {
-  // Make matches the make field OR the title, so listings whose make field is
-  // blank/oddly formatted (common in JSON feeds) still match when the title
-  // names the marque, e.g. "1973 Porsche 911".
-  if (entry.make && !eq(listing.make, entry.make) &&
-      !includes(listing.title, entry.make)) return false;
-  if (entry.model && !includes(listing.model, entry.model) &&
-      !includes(listing.title, entry.model)) return false;
-  if (entry.trim && !includes(listing.trim, entry.trim) &&
-      !includes(listing.title, entry.trim)) return false;
+  // Text we can match make/model/trim against: the title AND the description
+  // (a car's marque may only appear in its blurb — e.g. a Porsche-only dealer
+  // that names cars "930 S" but says "Porsche" in the description).
+  const blurb = `${listing.title} ${listing.description || ""}`;
+
+  // Make matches the make field OR the text, so listings whose make field is
+  // blank/oddly formatted (common in feeds) still match, e.g. "1973 Porsche 911".
+  if (entry.make && !eq(listing.make, entry.make) && !includes(blurb, entry.make)) return false;
+  if (entry.model && !includes(listing.model, entry.model) && !includes(blurb, entry.model)) return false;
+  if (entry.trim && !includes(listing.trim, entry.trim) && !includes(blurb, entry.trim)) return false;
 
   if (entry.yearMin != null && (listing.year == null || listing.year < entry.yearMin)) return false;
   if (entry.yearMax != null && (listing.year == null || listing.year > entry.yearMax)) return false;
