@@ -140,18 +140,20 @@ async function scrapeWeb(dealer, adapter, { fetchFn, jsonFetch, browser, debug }
 
   // "Hub" inventory pages list model categories rather than cars. If we found
   // little, follow the deeper inventory links (categories / vehicle pages) and
-  // aggregate what they contain.
+  // aggregate what they contain — in parallel, with a time budget, so it stays
+  // responsive.
   if (byId.size < 2) {
     const subs = inventorySubLinks(html, invUrl).slice(0, MAX_SUBPAGES);
-    for (const sub of subs) {
+    const deadline = Date.now() + CRAWL_BUDGET_MS;
+    await mapLimit(subs, CRAWL_CONCURRENCY, async (sub) => {
+      if (Date.now() > deadline) return;
       try {
         const subHtml = await fetchImpl(sub);
         for (const r of autoExtractListings(subHtml, sub)) addListing(byId, r, dealer);
       } catch {
         /* skip a sub-page that fails */
       }
-      if (byId.size >= 60) break; // enough
-    }
+    });
   }
 
   const listings = [...byId.values()].filter((l) => !l.sold);
@@ -160,11 +162,25 @@ async function scrapeWeb(dealer, adapter, { fetchFn, jsonFetch, browser, debug }
   return result;
 }
 
-const MAX_SUBPAGES = 12;
+const MAX_SUBPAGES = 8;
+const CRAWL_CONCURRENCY = 4;
+const CRAWL_BUDGET_MS = 25000;
 
 function addListing(byId, raw, dealer) {
   const l = normalizeListing(raw, dealer);
   if (!byId.has(l.id)) byId.set(l.id, l);
+}
+
+// Run async `fn` over `items` with at most `limit` in flight at once.
+async function mapLimit(items, limit, fn) {
+  let i = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (i < items.length) {
+      const idx = i++;
+      await fn(items[idx], idx);
+    }
+  });
+  await Promise.all(workers);
 }
 
 // Normalize raw listings and drop sold ones.

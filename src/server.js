@@ -132,7 +132,8 @@ app.post("/api/dealers/test", async (req, res) => {
     dealer = { id: "__test__", name: value.name || "Test", ...value };
   }
   try {
-    const result = await scrapeDealer(dealer, { debug: true });
+    // Never let the request hang — browser scraping + crawling can be slow.
+    const result = await withTimeout(scrapeDealer(dealer, { debug: true }), 60000);
     res.json({
       ok: !result.error,
       error: result.error,
@@ -143,9 +144,20 @@ app.post("/api/dealers/test", async (req, res) => {
       debug: result.debug || null, // page structure when nothing was found
     });
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+    const msg =
+      err.message === "timeout"
+        ? "Test timed out (the site was slow to scrape). It may still work on a full background scan — try Scan now."
+        : err.message;
+    res.status(err.message === "timeout" ? 504 : 500).json({ ok: false, error: msg });
   }
 });
+
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), ms)),
+  ]);
+}
 
 app.get("/api/status", (_req, res) => {
   const db = load();

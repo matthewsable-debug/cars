@@ -45,7 +45,7 @@ const UA =
 
 // Fetch a URL's fully-rendered HTML. Matches the fetchText(url) signature so it
 // can be dropped in as the scraper/discovery fetch implementation.
-export async function renderPage(url, { waitSelector, timeoutMs = 30000 } = {}) {
+export async function renderPage(url, { waitSelector, timeoutMs = 20000 } = {}) {
   const browser = await getBrowser();
   const context = await browser.newContext({
     userAgent: UA,
@@ -60,25 +60,13 @@ export async function renderPage(url, { waitSelector, timeoutMs = 30000 } = {}) 
   const page = await context.newPage();
   try {
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: timeoutMs });
-    // Give JS-rendered inventory a chance to populate.
+    // Give JS-rendered inventory a brief chance to populate, then return. Kept
+    // short so crawling several pages stays fast.
     if (waitSelector) {
-      await page.waitForSelector(waitSelector, { timeout: 10000 }).catch(() => {});
+      await page.waitForSelector(waitSelector, { timeout: 6000 }).catch(() => {});
     }
-    await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
-    // Many dealer sites inject inventory via AJAX after load; wait until a
-    // repeated card-like structure appears (links with images), then settle.
-    await page
-      .waitForFunction(
-        () => {
-          const links = document.querySelectorAll("a[href]");
-          let withImg = 0;
-          for (const a of links) if (a.querySelector("img")) withImg++;
-          return withImg >= 4 || document.body.innerText.length > 3000;
-        },
-        { timeout: 8000 }
-      )
-      .catch(() => {});
-    await page.waitForTimeout(1200); // final settle for late AJAX
+    await page.waitForLoadState("networkidle", { timeout: 5000 }).catch(() => {});
+    await page.waitForTimeout(400);
     return await page.content();
   } finally {
     await context.close().catch(() => {});
