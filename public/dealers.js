@@ -167,7 +167,19 @@ els.testBtn.addEventListener("click", async () => {
     }).then((r) => r.json());
     if (data.error) { notify("Test failed: " + data.error, "err"); return; }
     const found = data.inventoryUrl ? ` (inventory: ${data.inventoryUrl})` : "";
-    if (!data.count) { notify(`Reached the site${found} but found 0 available vehicles — try adjusting selectors.`, "err"); return; }
+    if (!data.count) {
+      let diag = "";
+      if (data.debug) {
+        const d = data.debug;
+        diag =
+          ` · Page info: ${d.links} links, ${d.images} images, ${d.detailLinks} vehicle-ish links, ` +
+          `${d.prices} prices, JSON-LD:${d.jsonLd}, embeddedJSON:${d.embeddedJson}.` +
+          (d.detailSamples?.length ? ` Links: ${d.detailSamples.slice(0, 3).join(" | ")}` : "") +
+          (d.yearSnippets?.length ? ` · Years seen: ${d.yearSnippets.slice(0, 3).join(" | ")}` : "");
+      }
+      notify(`Reached the site${found} but found 0 available vehicles.${diag}`, "err");
+      return;
+    }
     const first = data.sample[0];
     const via = data.method === "json" ? " via JSON feed" : "";
     notify(`Found ${data.count} available vehicle(s)${via}${found}. First: ${first.title || "(untitled)"}${first.price ? " — $" + first.price.toLocaleString() : ""}.`, "ok");

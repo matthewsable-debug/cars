@@ -180,6 +180,40 @@ test("DOM heuristic ignores marketing/copyright years, keeps real cars", () => {
   assert.equal(items[0].link, "https://dealer.test/vehicles/123-1973-porsche-911");
 });
 
+test("scrapeDealer crawls a hub inventory page into model sub-pages", async () => {
+  // A "hub" /inventory/ page that only links to model categories (no cars),
+  // each of which lists actual vehicles — like Sloan Motor Cars.
+  const HUB = `<html><body>
+    <a href="/inventory/porsche-911/"><img src="/c/911.jpg">911</a>
+    <a href="/inventory/porsche-993/"><img src="/c/993.jpg">993</a>
+    <a href="/about">About</a>
+  </body></html>`;
+  const P911 = `<html><body>
+    <div class="car"><a href="/inventory/porsche-911/1973-carrera-rs/"><img src="/v/1.jpg"><h3>1973 Porsche 911 Carrera RS</h3></a><span>$895,000</span></div>
+  </body></html>`;
+  const P993 = `<html><body>
+    <div class="car"><a href="/inventory/porsche-993/1995-turbo/"><img src="/v/2.jpg"><h3>1995 Porsche 993 Turbo</h3></a><span>Inquire</span></div>
+  </body></html>`;
+  const fetchImpl = async (url) => {
+    if (/\/inventory\/porsche-911\/?$/.test(url)) return P911;
+    if (/\/inventory\/porsche-993\/?$/.test(url)) return P993;
+    if (/\/inventory\/?$/.test(url)) return HUB;
+    if (url.replace(/\/$/, "").endsWith("sloan.test")) return HUB;
+    throw new Error("404 " + url);
+  };
+  const dealer = {
+    id: "sloan", name: "Sloan", type: "html",
+    url: "https://sloan.test/", inventoryUrl: "https://sloan.test/inventory/",
+  };
+  const result = await scrapeDealer(dealer, { fetchImpl });
+  assert.equal(result.error, null);
+  assert.equal(result.listings.length, 2, "aggregated cars from both model pages");
+  assert.ok(result.listings.every((l) => matchesEntryPorsche(l)));
+});
+function matchesEntryPorsche(l) {
+  return /Porsche/i.test(l.title);
+}
+
 test("scrapeDealer works with NO selectors via auto-extraction", async () => {
   const dealer = {
     id: "auto",

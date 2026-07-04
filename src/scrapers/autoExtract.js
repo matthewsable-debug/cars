@@ -31,6 +31,70 @@ export function countListings(html, pageUrl) {
   return autoExtractListings(html, pageUrl).length;
 }
 
+// Summarize a page's structure to explain why extraction found nothing (shown in
+// the Test-scrape result). Reveals whether it's a category hub, JS-only, etc.
+export function diagnose(html, pageUrl) {
+  const $ = cheerio.load(html);
+  const detail = [];
+  $("a[href]").each((_, a) => {
+    const h = $(a).attr("href") || "";
+    if (DETAIL_SLUG_RE.test(h)) detail.push(absOrRaw(h, pageUrl));
+  });
+  const body = clean($("body").text());
+  const yearSnippets = [];
+  const re = /\S[^]{0,12}\b(?:19|20)\d{2}\b[^]{0,18}/g;
+  let m;
+  while ((m = re.exec(body)) && yearSnippets.length < 4) yearSnippets.push(clean(m[0]).slice(0, 48));
+  return {
+    bytes: html.length,
+    links: $("a[href]").length,
+    images: $("img").length,
+    detailLinks: detail.length,
+    detailSamples: [...new Set(detail)].slice(0, 6),
+    jsonLd: $('script[type="application/ld+json"]').length,
+    embeddedJson: $("#__NEXT_DATA__").length > 0 || /__NUXT__|__INITIAL_STATE__/.test(html),
+    prices: (body.match(/\$\s?\d{2,3}(?:,\d{3})+/g) || []).length,
+    yearSnippets,
+  };
+}
+
+function absOrRaw(href, base) {
+  try {
+    return new URL(href, base).toString();
+  } catch {
+    return href;
+  }
+}
+
+// Same-site links that look like deeper inventory pages (model categories or
+// individual vehicle pages). Used to crawl "hub" inventory pages that list
+// categories rather than cars (e.g. /inventory/ → /inventory/porsche-911/).
+export function inventorySubLinks(html, baseUrl) {
+  const $ = cheerio.load(html);
+  let baseHost = "";
+  try {
+    baseHost = new URL(baseUrl).hostname.replace(/^www\./, "");
+  } catch {
+    /* ignore */
+  }
+  const self = baseUrl.split("#")[0].replace(/\/$/, "");
+  const out = new Set();
+  $("a[href]").each((_, a) => {
+    const abs = absOrRaw($(a).attr("href") || "", baseUrl).split("#")[0];
+    if (!DETAIL_SLUG_RE.test(abs)) return;
+    let host = "";
+    try {
+      host = new URL(abs).hostname.replace(/^www\./, "");
+    } catch {
+      return;
+    }
+    if (host !== baseHost) return;
+    if (abs.replace(/\/$/, "") === self) return; // skip the page itself
+    out.add(abs);
+  });
+  return [...out];
+}
+
 // Extract listings from a JSON feed (e.g. a Rails `/vehicles.json` endpoint):
 // parse it and walk the tree for vehicle-like objects. Handles arbitrary shapes
 // (top-level array, { vehicles: [...] }, paginated wrappers, etc.).

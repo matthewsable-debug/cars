@@ -3,7 +3,13 @@ import { scrapeHtmlDealer } from "./htmlScraper.js";
 import { discoverInventoryUrl } from "./discovery.js";
 import { renderPage, browserFetchJson, closeBrowser } from "./browserScraper.js";
 import { fetchText } from "./http.js";
-import { countListings, extractListingsFromJson } from "./autoExtract.js";
+import {
+  countListings,
+  extractListingsFromJson,
+  autoExtractListings,
+  inventorySubLinks,
+  diagnose,
+} from "./autoExtract.js";
 import { normalizeListing } from "../core/listing.js";
 
 // Adapter registry. Add your own by registering a function keyed by dealer type.
@@ -29,7 +35,7 @@ export { closeBrowser };
 // have a cached inventory URL, we auto-discover the inventory page deeper in the
 // site. `browser` dealers render pages in headless Chromium (for JS-heavy or
 // bot-protected sites). Sold / sale-pending cars are filtered out.
-export async function scrapeDealer(dealer, { fetchImpl, jsonFetch } = {}) {
+export async function scrapeDealer(dealer, { fetchImpl, jsonFetch, debug } = {}) {
   const adapter = ADAPTERS[dealer.type];
   if (!adapter) {
     return { dealer, listings: [], error: `No adapter for type "${dealer.type}"` };
@@ -59,7 +65,7 @@ export async function scrapeDealer(dealer, { fetchImpl, jsonFetch } = {}) {
   let last = { dealer, listings: [], error: null };
   for (const attempt of attempts) {
     try {
-      const res = await scrapeWeb(dealer, adapter, attempt);
+      const res = await scrapeWeb(dealer, adapter, { ...attempt, debug });
       if (res.listings.length > 0) return res; // success — stop here
       last = res;
     } catch (err) {
@@ -71,7 +77,7 @@ export async function scrapeDealer(dealer, { fetchImpl, jsonFetch } = {}) {
 
 // Run discovery → JSON feed → HTML extraction for a web dealer using one fetch
 // strategy (plain HTTP or headless browser).
-async function scrapeWeb(dealer, adapter, { fetchFn, jsonFetch, browser }) {
+async function scrapeWeb(dealer, adapter, { fetchFn, jsonFetch, browser, debug }) {
   const fetchImpl = browser
     ? (url) => renderPage(url, { waitSelector: dealer.selectors?.card })
     : fetchFn;
@@ -119,8 +125,46 @@ async function scrapeWeb(dealer, adapter, { fetchFn, jsonFetch, browser }) {
     }
   }
 
-  const raw = await adapter(working, { fetchImpl });
-  return { dealer, listings: keep(raw, dealer), error: null, discoveredInventoryUrl, source: "html" };
+  // Selector mode: use the configured CSS-selector scraper as-is.
+  if (dealer.selectors?.card) {
+    const raw = await adapter(working, { fetchImpl });
+    return { dealer, listings: keep(raw, dealer), error: null, discoveredInventoryUrl, source: "html" };
+  }
+
+  // Auto mode: fetch the inventory page ourselves so we can also crawl sub-pages
+  // and diagnose failures.
+  const invUrl = working.inventoryUrl || working.url;
+  const html = await fetchImpl(invUrl);
+  const byId = new Map();
+  for (const r of autoExtractListings(html, invUrl)) addListing(byId, r, dealer);
+
+  // "Hub" inventory pages list model categories rather than cars. If we found
+  // little, follow the deeper inventory links (categories / vehicle pages) and
+  // aggregate what they contain.
+  if (byId.size < 2) {
+    const subs = inventorySubLinks(html, invUrl).slice(0, MAX_SUBPAGES);
+    for (const sub of subs) {
+      try {
+        const subHtml = await fetchImpl(sub);
+        for (const r of autoExtractListings(subHtml, sub)) addListing(byId, r, dealer);
+      } catch {
+        /* skip a sub-page that fails */
+      }
+      if (byId.size >= 60) break; // enough
+    }
+  }
+
+  const listings = [...byId.values()].filter((l) => !l.sold);
+  const result = { dealer, listings, error: null, discoveredInventoryUrl, source: "html" };
+  if (debug && listings.length === 0) result.debug = diagnose(html, invUrl);
+  return result;
+}
+
+const MAX_SUBPAGES = 12;
+
+function addListing(byId, raw, dealer) {
+  const l = normalizeListing(raw, dealer);
+  if (!byId.has(l.id)) byId.set(l.id, l);
 }
 
 // Normalize raw listings and drop sold ones.

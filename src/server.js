@@ -132,7 +132,7 @@ app.post("/api/dealers/test", async (req, res) => {
     dealer = { id: "__test__", name: value.name || "Test", ...value };
   }
   try {
-    const result = await scrapeDealer(dealer);
+    const result = await scrapeDealer(dealer, { debug: true });
     res.json({
       ok: !result.error,
       error: result.error,
@@ -140,6 +140,7 @@ app.post("/api/dealers/test", async (req, res) => {
       method: result.source || null, // "json" (feed) or "html" (page scrape)
       inventoryUrl: result.discoveredInventoryUrl || dealer.inventoryUrl || dealer.url || null,
       sample: result.listings.slice(0, 6),
+      debug: result.debug || null, // page structure when nothing was found
     });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
