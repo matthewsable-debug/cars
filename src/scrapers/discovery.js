@@ -109,7 +109,7 @@ export async function discoverInventoryUrl(
 // so a failed discovery doesn't fetch (and possibly headless-render) too many.
 const COMMON_PATHS = [
   "/inventory",
-  "/inventory/",
+  "/used-inventory/index.htm", // Dealer.com / DealerFire (Cox Automotive)
   "/vehicles",
   "/used-vehicles",
   "/pre-owned",

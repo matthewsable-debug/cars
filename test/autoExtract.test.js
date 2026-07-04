@@ -240,6 +240,25 @@ test("model CATEGORY links (no year in slug) are not mistaken for cars", () => {
   assert.equal(autoExtractListings(HUB, "https://sloan.test/inventory/").length, 0);
 });
 
+// Dealer.com (Cox Automotive) VDP layout: /used/{Make}/{year}-...-for-sale-
+// {city}-{state}-{hash}.htm. The path segment is /used/, and one card has an
+// empty title link so the name must come from its OWN slug (not a sibling's).
+const DEALERCOM_PAGE = `<!doctype html><html><body><div class="inventory">
+  <div class="vehicle-card"><div class="media"><img src="/p.jpg"></div><a class="title" href="/used/Porsche/1992-Porsche-911-for-sale-dallas-fort-worth-texas-36f8f970ac183413e292efad04179922.htm">1992 Porsche 911</a><span class="price">$149,900</span></div>
+  <div class="vehicle-card"><div class="media"><img src="/m.jpg"></div><a class="title" href="/used/BMW/2018-BMW-M3-for-sale-dallas-texas-aa11bb22cc33dd44ee55ff6600112233.htm"></a><span class="price">$62,000</span><span class="badge">SOLD</span></div>
+  <div class="vehicle-card"><div class="media"><img src="/g.jpg"></div><a class="title" href="/used/Mercedes-Benz/2021-Mercedes-Benz-AMG-GT-for-sale-plano-texas-99887766554433221100aabbccddeeff.htm">2021 Mercedes-Benz AMG GT</a><span class="price">$118,000</span></div>
+</div></body></html>`;
+
+test("extracts Dealer.com /used/{Make}/... VDP links, titling each from its own card", () => {
+  const items = autoExtractListings(DEALERCOM_PAGE, "https://earth.test/used-inventory/index.htm");
+  assert.equal(items.length, 3);
+  const byTitle = Object.fromEntries(items.map((i) => [i.title, i]));
+  assert.ok(byTitle["1992 Porsche 911"], "title cleaned of for-sale/city/hash cruft");
+  assert.ok(byTitle["2018 BMW M3"], "empty-text link titled from its OWN slug, not a sibling");
+  assert.equal(byTitle["2018 BMW M3"].sold, true);
+  assert.equal(items.filter((i) => !i.sold).length, 2);
+});
+
 function matchesEntryPorsche(l) {
   return /Porsche/i.test(l.title);
 }

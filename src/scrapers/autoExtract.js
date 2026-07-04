@@ -330,9 +330,11 @@ const YEAR_RE = /\b(19|20)\d{2}\b/;
 const DETAIL_RE =
   /\/(vehicle|vehicles|inventory|used|new|certified|vin|detail|listing|for-sale|cars?|auto|stock)\b|\/[A-HJ-NPR-Z0-9]{17}(?:[/?]|$)/i;
 // A link to a SPECIFIC vehicle (keyword + a slug/id segment, or a VIN). Used to
-// distinguish a real listing card from marketing blocks that merely mention a year.
+// distinguish a real listing card from marketing blocks that merely mention a
+// year. Includes used/new/certified/pre-owned so Dealer.com-style VDP paths
+// (e.g. /used/Porsche/1992-Porsche-911-for-sale-...-<hash>.htm) are recognized.
 const DETAIL_SLUG_RE =
-  /\/(?:vehicles?|inventory|listings?|cars?|autos?|stock|detail|for-sale)\/[^/?#]+|\/[A-HJ-NPR-Z0-9]{17}(?:[/?#]|$)/i;
+  /\/(?:vehicles?|inventory|listings?|cars?|autos?|stock|detail|for-sale|used|new|certified|cpo|pre-?owned)\/[^/?#]+|\/[A-HJ-NPR-Z0-9]{17}(?:[/?#]|$)/i;
 // "since 1986", "est. 1986", "© 2024" etc. — years that are NOT model years.
 const NON_MODEL_YEAR = /\b(since|est\.?|established|founded|copyright|©|all rights)\b/i;
 // A link to a SPECIFIC vehicle: an inventory/vehicle path whose slug carries a
@@ -341,7 +343,7 @@ const NON_MODEL_YEAR = /\b(since|est\.?|established|founded|copyright|©|all rig
 // CATEGORY pages like /inventory/porsche-930/ (no year in the slug) — letting us
 // tell a leaf car page from a category hub without site-specific selectors.
 const LEAF_DETAIL_RE =
-  /\/(?:vehicles?|inventory|listings?|cars?|autos?|stock|detail|for-sale)\/[^?#]*?(?:19|20)\d{2}[^?#]*|\/[A-HJ-NPR-Z0-9]{17}(?:[/?#]|$)/i;
+  /\/(?:vehicles?|inventory|listings?|cars?|autos?|stock|detail|for-sale|used|new|certified|cpo|pre-?owned)\/[^?#]*?(?:19|20)\d{2}[^?#]*|\/[A-HJ-NPR-Z0-9]{17}(?:[/?#]|$)/i;
 
 // Only treat a card as sold on a clear signal: an all-caps SOLD badge, or an
 // explicit phrase. Avoids false positives from prose like "only 60 were sold".
@@ -382,30 +384,36 @@ function extractLeafLinks($, pageUrl) {
     const url = abs(href, pageUrl).split("#")[0];
     if (byUrl.has(url)) return;
 
-    // Title: the link's own text if it names a year; else the nearest heading or
-    // short text in the card; else derive it from the URL slug.
+    // Tight per-card scope: climb only while the ancestor still isolates THIS one
+    // leaf link. Once a parent contains 2+ leaf links it groups several cards, so
+    // we stop — this keeps title/price/photo/sold local to the single card and
+    // never bleeds a sibling card's heading into this one.
+    const scope = cardScope($, $a);
+    const scopeText = clean(scope.text()).slice(0, 400);
+
+    // Title: the link's own text if it names a year; else a heading WITHIN this
+    // card's scope; else derive it from the URL slug.
     let title = clean($a.text());
     if (!YEAR_RE.test(title)) {
-      let el = $a;
-      for (let i = 0; i < 4 && el.length; i++) {
-        const h = clean(el.find("h1,h2,h3,h4,h5,[class*=title],[class*=name],[class*=heading]").first().text());
-        if (h && YEAR_RE.test(h) && h.length < 120) { title = h; break; }
-        el = el.parent();
-      }
+      const h = clean(
+        scope.find("h1,h2,h3,h4,h5,[class*=title],[class*=name],[class*=heading]").first().text()
+      );
+      if (h && YEAR_RE.test(h) && h.length < 120) title = h;
     }
     if (!YEAR_RE.test(title)) {
       const slug = decodeURIComponent(url).split(/[/?]/).filter(Boolean).pop() || "";
-      const fromSlug = clean(slug.replace(/[-_]+/g, " "));
+      let fromSlug = clean(slug.replace(/\.html?$/i, "").replace(/[-_]+/g, " "));
+      // Drop marketing/SEO cruft dealer platforms append: "...for sale <city>
+      // <state> <hash>" and long hex ids, leaving just "1992 Porsche 911".
+      fromSlug = fromSlug
+        .replace(/\bfor sale\b.*$/i, "")
+        .replace(/\b[0-9a-f]{12,}\b/gi, "")
+        .trim();
       if (YEAR_RE.test(fromSlug)) title = fromSlug;
     }
     if (title.length > 100) title = title.slice(0, 100).replace(/\s+\S*$/, "");
     if (!looksLikeVehicleTitle(title)) return;
 
-    // Tight per-card scope: climb only while the ancestor still isolates THIS one
-    // leaf link. Once a parent contains 2+ leaf links it groups several cards, so
-    // we stop — this keeps price/photo/sold local to the single card.
-    const scope = cardScope($, $a);
-    const scopeText = clean(scope.text()).slice(0, 400);
     let img = scope.find("img").first();
     const image = abs(
       img.attr("src") || img.attr("data-src") || img.attr("data-lazy") || img.attr("data-original") || "",
