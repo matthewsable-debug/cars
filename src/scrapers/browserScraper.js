@@ -59,7 +59,11 @@ export async function renderPage(url, { waitSelector, timeoutMs = 20000 } = {}) 
   });
   const page = await context.newPage();
   try {
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: timeoutMs });
+    // page.goto only throws on NETWORK errors, not HTTP 4xx/5xx — so a bot-block
+    // (403) or missing page would otherwise return a blank body and masquerade as
+    // "0 vehicles". Capture the status and fail loudly instead.
+    const resp = await page.goto(url, { waitUntil: "domcontentloaded", timeout: timeoutMs });
+    const status = resp ? resp.status() : 0;
     // Give JS-rendered inventory a brief chance to populate, then return. Kept
     // short so crawling several pages stays fast.
     if (waitSelector) {
@@ -67,7 +71,12 @@ export async function renderPage(url, { waitSelector, timeoutMs = 20000 } = {}) 
     }
     await page.waitForLoadState("networkidle", { timeout: 5000 }).catch(() => {});
     await page.waitForTimeout(400);
-    return await page.content();
+    const html = await page.content();
+    if (status >= 400) {
+      const hint = status === 403 || status === 429 ? " — likely bot protection blocking headless Chromium" : "";
+      throw new Error(`HTTP ${status} from ${url}${hint}`);
+    }
+    return html;
   } finally {
     await context.close().catch(() => {});
   }
