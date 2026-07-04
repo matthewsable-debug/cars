@@ -138,28 +138,44 @@ async function scrapeWeb(dealer, adapter, { fetchFn, jsonFetch, browser, debug }
   const byId = new Map();
   for (const r of autoExtractListings(html, invUrl)) addListing(byId, r, dealer);
 
+  const dbg = debug ? { inventoryUrl: invUrl, hubCars: byId.size, ...diagnose(html, invUrl) } : null;
+
   // "Hub" inventory pages list model categories rather than cars. If we found
   // little, follow the deeper inventory links (categories / vehicle pages) and
   // aggregate what they contain — in parallel, with a time budget, so it stays
   // responsive.
   if (byId.size < 2) {
-    const subs = inventorySubLinks(html, invUrl).slice(0, MAX_SUBPAGES);
+    const allSubs = inventorySubLinks(html, invUrl);
+    const subs = allSubs.slice(0, MAX_SUBPAGES);
+    if (dbg) {
+      dbg.subLinksFound = allSubs.length;
+      dbg.crawled = [];
+    }
     const deadline = Date.now() + CRAWL_BUDGET_MS;
     await mapLimit(subs, CRAWL_CONCURRENCY, async (sub) => {
       if (Date.now() > deadline) return;
+      const before = byId.size;
       try {
         const subHtml = await fetchImpl(sub);
         for (const r of autoExtractListings(subHtml, sub)) addListing(byId, r, dealer);
+        if (dbg) dbg.crawled.push(`${pathOf(sub)}:${byId.size - before}`);
       } catch {
-        /* skip a sub-page that fails */
+        if (dbg) dbg.crawled.push(`${pathOf(sub)}:err`);
       }
     });
   }
 
   const listings = [...byId.values()].filter((l) => !l.sold);
-  const result = { dealer, listings, error: null, discoveredInventoryUrl, source: "html" };
-  if (debug && listings.length === 0) result.debug = diagnose(html, invUrl);
-  return result;
+  if (dbg) dbg.total = listings.length;
+  return { dealer, listings, error: null, discoveredInventoryUrl, source: "html", debug: dbg };
+}
+
+function pathOf(url) {
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return url;
+  }
 }
 
 const MAX_SUBPAGES = 8;

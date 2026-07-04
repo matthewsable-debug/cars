@@ -22,6 +22,22 @@ function notify(msg, kind = "ok") {
   els.notice.textContent = msg;
   els.notice.className = `notice show ${kind}`;
 }
+
+// Compact, pasteable diagnostic of the page structure + crawl (for tuning).
+function debugSummary(d) {
+  if (!d) return "";
+  const parts = [
+    `hubCars=${d.hubCars}`,
+    `links=${d.links}`, `imgs=${d.images}`,
+    `vehLinks=${d.detailLinks}`, `prices=${d.prices}`,
+    `jsonLd=${d.jsonLd}`, `embJson=${d.embeddedJson}`,
+  ];
+  if (d.subLinksFound != null) parts.push(`subLinks=${d.subLinksFound}`);
+  if (d.crawled?.length) parts.push(`crawled=[${d.crawled.join(", ")}]`);
+  if (d.detailSamples?.length) parts.push(`samples=${d.detailSamples.slice(0, 4).join(" | ")}`);
+  if (d.yearSnippets?.length) parts.push(`years=${d.yearSnippets.slice(0, 3).join(" | ")}`);
+  return ` · DIAG: ${parts.join(" · ")}`;
+}
 function clearNotice() { els.notice.className = "notice"; }
 
 // Show/hide URL + selectors depending on dealer type.
@@ -167,22 +183,15 @@ els.testBtn.addEventListener("click", async () => {
     }).then((r) => r.json());
     if (data.error) { notify("Test failed: " + data.error, "err"); return; }
     const found = data.inventoryUrl ? ` (inventory: ${data.inventoryUrl})` : "";
+    const diag = debugSummary(data.debug);
     if (!data.count) {
-      let diag = "";
-      if (data.debug) {
-        const d = data.debug;
-        diag =
-          ` · Page info: ${d.links} links, ${d.images} images, ${d.detailLinks} vehicle-ish links, ` +
-          `${d.prices} prices, JSON-LD:${d.jsonLd}, embeddedJSON:${d.embeddedJson}.` +
-          (d.detailSamples?.length ? ` Links: ${d.detailSamples.slice(0, 3).join(" | ")}` : "") +
-          (d.yearSnippets?.length ? ` · Years seen: ${d.yearSnippets.slice(0, 3).join(" | ")}` : "");
-      }
       notify(`Reached the site${found} but found 0 available vehicles.${diag}`, "err");
       return;
     }
     const first = data.sample[0];
     const via = data.method === "json" ? " via JSON feed" : "";
-    notify(`Found ${data.count} available vehicle(s)${via}${found}. First: ${first.title || "(untitled)"}${first.price ? " — $" + first.price.toLocaleString() : ""}.`, "ok");
+    const kind = data.count < 5 ? "err" : "ok"; // few results → flag it so the diag shows
+    notify(`Found ${data.count} available vehicle(s)${via}${found}. First: ${first.title || "(untitled)"}${first.price ? " — $" + first.price.toLocaleString() : ""}.${diag}`, kind);
   } catch (err) {
     notify("Network error: " + err.message, "err");
   } finally {
