@@ -88,6 +88,11 @@ async function scrapeWeb(dealer, adapter, { fetchFn, jsonFetch, browser, debug }
   const fetchImpl = browser
     ? (url) => renderPage(url, { waitSelector: dealer.selectors?.card })
     : fetchFn;
+  // Crawling a hub's many model sub-pages via the browser is the slow path; use a
+  // shorter per-page settle so a whole hub fits within the request budget.
+  const crawlFetchImpl = browser
+    ? (url) => renderPage(url, { waitSelector: dealer.selectors?.card, quick: true })
+    : fetchFn;
 
   let working = dealer;
   let discoveredInventoryUrl = null;
@@ -164,7 +169,7 @@ async function scrapeWeb(dealer, adapter, { fetchFn, jsonFetch, browser, debug }
     await mapLimit(subs, CRAWL_CONCURRENCY, async (sub) => {
       if (Date.now() > deadline) return;
       try {
-        const subHtml = await fetchImpl(sub);
+        const subHtml = await crawlFetchImpl(sub);
         // Count what THIS page yields on its own (deduped per page) — a shared-map
         // size delta is unreliable under concurrency and misreports per-page hits.
         const found = autoExtractListings(subHtml, sub);
@@ -194,7 +199,7 @@ function pathOf(url) {
 
 const MAX_SUBPAGES = 18;
 const CRAWL_CONCURRENCY = 5;
-const CRAWL_BUDGET_MS = 40000;
+const CRAWL_BUDGET_MS = 70000;
 
 function addListing(byId, raw, dealer) {
   const l = normalizeListing(raw, dealer);

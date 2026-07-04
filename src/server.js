@@ -133,7 +133,7 @@ app.post("/api/dealers/test", async (req, res) => {
   }
   try {
     // Never let the request hang — browser scraping + crawling can be slow.
-    const result = await withTimeout(scrapeDealer(dealer, { debug: true }), 60000);
+    const result = await withTimeout(scrapeDealer(dealer, { debug: true }), 110000);
     res.json({
       ok: !result.error,
       error: result.error,

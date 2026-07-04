@@ -45,7 +45,7 @@ const UA =
 
 // Fetch a URL's fully-rendered HTML. Matches the fetchText(url) signature so it
 // can be dropped in as the scraper/discovery fetch implementation.
-export async function renderPage(url, { waitSelector, timeoutMs = 20000 } = {}) {
+export async function renderPage(url, { waitSelector, timeoutMs = 20000, quick = false } = {}) {
   const browser = await getBrowser();
   const context = await browser.newContext({
     userAgent: UA,
@@ -67,10 +67,12 @@ export async function renderPage(url, { waitSelector, timeoutMs = 20000 } = {}) 
     // Give JS-rendered inventory a brief chance to populate, then return. Kept
     // short so crawling several pages stays fast.
     if (waitSelector) {
-      await page.waitForSelector(waitSelector, { timeout: 6000 }).catch(() => {});
+      await page.waitForSelector(waitSelector, { timeout: quick ? 3000 : 6000 }).catch(() => {});
     }
-    await page.waitForLoadState("networkidle", { timeout: 5000 }).catch(() => {});
-    await page.waitForTimeout(400);
+    // `quick` uses shorter settle times — used when crawling many sub-pages via
+    // the browser so a whole hub of model pages fits within the request budget.
+    await page.waitForLoadState("networkidle", { timeout: quick ? 2000 : 5000 }).catch(() => {});
+    await page.waitForTimeout(quick ? 200 : 400);
     const html = await page.content();
     if (status >= 400) {
       const hint = status === 403 || status === 429 ? " — likely bot protection blocking headless Chromium" : "";
