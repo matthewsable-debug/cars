@@ -1,7 +1,7 @@
 import { scrapeDemoDealer } from "./demoScraper.js";
 import { scrapeHtmlDealer } from "./htmlScraper.js";
 import { discoverInventoryUrl } from "./discovery.js";
-import { renderPage, browserFetchJson, closeBrowser } from "./browserScraper.js";
+import { renderPage, renderCapture, browserFetchJson, closeBrowser } from "./browserScraper.js";
 import { fetchText } from "./http.js";
 import {
   countListings,
@@ -68,17 +68,24 @@ export async function scrapeDealer(dealer, { fetchImpl, jsonFetch, debug } = {})
   // rendering with the browser. Stop early only once a result looks healthy.
   const ENOUGH = 3;
   let best = { dealer, listings: [], error: null };
+  const attemptDebug = []; // each attempt's diagnostics, for visibility when few cars
   for (const attempt of attempts) {
     try {
       const res = await scrapeWeb(dealer, adapter, { ...attempt, debug });
+      if (res.debug) attemptDebug.push(res.debug);
       if (res.listings.length > best.listings.length) best = res;
-      if (best.listings.length >= ENOUGH) return best; // healthy — no need to try more
+      if (best.listings.length >= ENOUGH) break; // healthy — no need to try more
     } catch (err) {
+      const msg = err.message || String(err);
+      if (debug) attemptDebug.push({ fetchMode: attempt.browser ? "browser" : "plain", error: msg });
       // Preserve a partial success from an earlier attempt; record the error only
       // if we still have nothing (e.g. plain empty + browser blocked).
-      if (best.listings.length === 0) best = { dealer, listings: [], error: err.message || String(err) };
+      if (best.listings.length === 0) best = { dealer, listings: [], error: msg };
     }
   }
+  // Surface every attempt's diagnostics so a thin winning result (e.g. plain=1)
+  // doesn't hide what the browser attempt actually saw.
+  if (debug) best = { ...best, attemptDebug };
   return best;
 }
 
@@ -87,11 +94,6 @@ export async function scrapeDealer(dealer, { fetchImpl, jsonFetch, debug } = {})
 async function scrapeWeb(dealer, adapter, { fetchFn, jsonFetch, browser, debug }) {
   const fetchImpl = browser
     ? (url) => renderPage(url, { waitSelector: dealer.selectors?.card })
-    : fetchFn;
-  // Crawling a hub's many model sub-pages via the browser is the slow path; use a
-  // shorter per-page settle so a whole hub fits within the request budget.
-  const crawlFetchImpl = browser
-    ? (url) => renderPage(url, { waitSelector: dealer.selectors?.card, quick: true })
     : fetchFn;
 
   let working = dealer;
@@ -144,14 +146,35 @@ async function scrapeWeb(dealer, adapter, { fetchFn, jsonFetch, browser, debug }
   }
 
   // Auto mode: fetch the inventory page ourselves so we can also crawl sub-pages
-  // and diagnose failures.
+  // and diagnose failures. In browser mode we additionally capture any JSON API
+  // responses the page fetches while rendering (JS inventory apps paint the grid
+  // from an XHR that "read the DOM" would miss).
   const invUrl = working.inventoryUrl || working.url;
-  const html = await fetchImpl(invUrl);
+  const getPage = browser
+    ? (url, quick) => renderCapture(url, { waitSelector: dealer.selectors?.card, quick })
+    : async (url) => ({ html: await fetchFn(url), jsons: [] });
+
   const byId = new Map();
-  for (const r of autoExtractListings(html, invUrl)) addListing(byId, r, dealer);
+  let apiFeeds = 0;
+  // Extract cars from a page's HTML AND any JSON API bodies it fetched, add them
+  // to the shared map, and return how many THIS page yielded (its own count, so
+  // per-page diagnostics stay accurate under concurrent crawling).
+  const extractInto = (page, url) => {
+    const found = [...autoExtractListings(page.html, url)];
+    for (const j of page.jsons || []) {
+      const items = extractListingsFromJson(j, url);
+      if (items.length) apiFeeds++;
+      found.push(...items);
+    }
+    for (const r of found) addListing(byId, r, dealer);
+    return found.length;
+  };
+
+  const home = await getPage(invUrl, false);
+  extractInto(home, invUrl);
 
   const dbg = debug
-    ? { inventoryUrl: invUrl, fetchMode: browser ? "browser" : "plain", hubCars: byId.size, ...diagnose(html, invUrl) }
+    ? { inventoryUrl: invUrl, fetchMode: browser ? "browser" : "plain", hubCars: byId.size, ...diagnose(home.html, invUrl) }
     : null;
 
   // "Hub" inventory pages list model categories rather than cars. If we found
@@ -159,7 +182,7 @@ async function scrapeWeb(dealer, adapter, { fetchFn, jsonFetch, browser, debug }
   // aggregate what they contain — in parallel, with a time budget, so it stays
   // responsive.
   if (byId.size < 2) {
-    const allSubs = inventorySubLinks(html, invUrl);
+    const allSubs = inventorySubLinks(home.html, invUrl);
     const subs = allSubs.slice(0, MAX_SUBPAGES);
     if (dbg) {
       dbg.subLinksFound = allSubs.length;
@@ -169,12 +192,9 @@ async function scrapeWeb(dealer, adapter, { fetchFn, jsonFetch, browser, debug }
     await mapLimit(subs, CRAWL_CONCURRENCY, async (sub) => {
       if (Date.now() > deadline) return;
       try {
-        const subHtml = await crawlFetchImpl(sub);
-        // Count what THIS page yields on its own (deduped per page) — a shared-map
-        // size delta is unreliable under concurrency and misreports per-page hits.
-        const found = autoExtractListings(subHtml, sub);
-        for (const r of found) addListing(byId, r, dealer);
-        if (dbg) dbg.crawled.push(`${pathOf(sub)}:${found.length}`);
+        const page = await getPage(sub, true);
+        const n = extractInto(page, sub);
+        if (dbg) dbg.crawled.push(`${pathOf(sub)}:${n}`);
       } catch {
         if (dbg) dbg.crawled.push(`${pathOf(sub)}:err`);
       }
@@ -183,6 +203,7 @@ async function scrapeWeb(dealer, adapter, { fetchFn, jsonFetch, browser, debug }
 
   const listings = [...byId.values()].filter((l) => !l.sold);
   if (dbg) {
+    dbg.apiFeeds = apiFeeds; // JSON API responses that yielded cars
     dbg.rawCars = byId.size; // unique cars found before dropping sold ones
     dbg.total = listings.length; // available cars returned
   }

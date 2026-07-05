@@ -141,7 +141,13 @@ app.post("/api/dealers/test", async (req, res) => {
       method: result.source || null, // "json" (feed) or "html" (page scrape)
       inventoryUrl: result.discoveredInventoryUrl || dealer.inventoryUrl || dealer.url || null,
       sample: result.listings.slice(0, 6),
-      debug: result.debug || null, // page structure when nothing was found
+      // Prefer the browser attempt's diagnostics (it sees JS-rendered/API cars);
+      // fall back to the winning attempt's debug.
+      debug:
+        (result.attemptDebug || []).find((d) => d.fetchMode === "browser") ||
+        result.debug ||
+        (result.attemptDebug || [])[0] ||
+        null,
     });
   } catch (err) {
     const msg =

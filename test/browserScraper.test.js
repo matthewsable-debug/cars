@@ -58,6 +58,64 @@ function startSite() {
   return new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve(server)));
 }
 
+// An inventory page that paints its grid from an XHR to a JSON API — the cars
+// are never in the DOM as parseable cards, only in the captured API response.
+function startApiSite() {
+  const server = http.createServer((req, res) => {
+    if (req.url.startsWith("/api/inventory.json")) {
+      res.setHeader("content-type", "application/json");
+      res.end(
+        JSON.stringify({
+          vehicles: [
+            { year: 1973, make: "Porsche", model: "911 Carrera RS", price: 895000, url: "/inventory/1973-911-carrera-rs" },
+            { year: 1995, make: "Porsche", model: "993 Turbo", price: 210000, url: "/inventory/1995-993-turbo" },
+            { year: 1988, make: "Porsche", model: "930 Slantnose", price: 295000, url: "/inventory/1988-930-slantnose" },
+          ],
+        })
+      );
+    } else if (req.url.startsWith("/inventory")) {
+      res.setHeader("content-type", "text/html");
+      res.end(`<!doctype html><html><body><div id="grid">Loading…</div>
+        <script>fetch('/api/inventory.json').then(r=>r.json()).then(d=>{
+          document.getElementById('grid').textContent = d.vehicles.length + ' cars';
+        });</script>
+      </body></html>`);
+    } else {
+      res.statusCode = 404;
+      res.end("not found");
+    }
+  });
+  return new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve(server)));
+}
+
+test("browser scraper captures a JSON API response and reads cars from it", async (t) => {
+  if (!(await browserAvailable())) {
+    t.skip("headless browser not available");
+    return;
+  }
+  const server = await startApiSite();
+  const { port } = server.address();
+  const base = `http://127.0.0.1:${port}/`;
+  const dealer = {
+    id: "api-test",
+    name: "API Test",
+    type: "browser",
+    url: base,
+    inventoryUrl: `${base}inventory`, // skip discovery; go straight to the page
+  };
+  try {
+    const result = await scrapeDealer(dealer, { debug: true });
+    assert.equal(result.error, null);
+    assert.equal(result.listings.length, 3, "cars read from the captured API JSON");
+    assert.ok(result.listings.every((l) => /Porsche/i.test(`${l.make} ${l.title}`)));
+    const bdbg = (result.attemptDebug || []).find((d) => d.fetchMode === "browser");
+    assert.ok(bdbg && bdbg.apiFeeds >= 1, "an API feed was captured");
+  } finally {
+    await closeBrowser();
+    server.close();
+  }
+});
+
 test("browser scraper renders JS inventory and auto-discovers the showroom", async (t) => {
   if (!(await browserAvailable())) {
     t.skip("headless browser not available");

@@ -84,6 +84,57 @@ export async function renderPage(url, { waitSelector, timeoutMs = 20000, quick =
   }
 }
 
+// Render a page AND capture any JSON API responses it fetches while loading.
+// Many modern dealer sites (and JS inventory apps like Sloan's) paint the car
+// grid from an XHR/fetch to a JSON endpoint after the HTML loads — invisible to
+// "render then read the DOM". Collecting those JSON bodies lets us read the
+// inventory straight from the API without knowing its URL in advance. Returns
+// { html, jsons } where jsons are raw JSON response bodies (best-effort).
+export async function renderCapture(url, { waitSelector, timeoutMs = 20000, quick = false } = {}) {
+  const browser = await getBrowser();
+  const context = await browser.newContext({
+    userAgent: UA,
+    viewport: { width: 1366, height: 900 },
+    locale: "en-US",
+    extraHTTPHeaders: { "Accept-Language": "en-US,en;q=0.9" },
+  });
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, "webdriver", { get: () => undefined });
+  });
+  const page = await context.newPage();
+  const jsons = [];
+  page.on("response", async (resp) => {
+    if (jsons.length >= 15) return;
+    try {
+      const ct = (resp.headers()["content-type"] || "").toLowerCase();
+      const u = resp.url();
+      if (!ct.includes("json") && !/\.json(\?|$)/i.test(u)) return;
+      const t = await resp.text();
+      const s = t.trim();
+      if (s.length > 40 && (s[0] === "{" || s[0] === "[")) jsons.push(t.slice(0, 3_000_000));
+    } catch {
+      /* response body not retained / already consumed */
+    }
+  });
+  try {
+    const resp = await page.goto(url, { waitUntil: "domcontentloaded", timeout: timeoutMs });
+    const status = resp ? resp.status() : 0;
+    if (waitSelector) {
+      await page.waitForSelector(waitSelector, { timeout: quick ? 3000 : 6000 }).catch(() => {});
+    }
+    await page.waitForLoadState("networkidle", { timeout: quick ? 2500 : 5000 }).catch(() => {});
+    await page.waitForTimeout(quick ? 250 : 500);
+    const html = await page.content();
+    if (status >= 400) {
+      const hint = status === 403 || status === 429 ? " — likely bot protection blocking headless Chromium" : "";
+      throw new Error(`HTTP ${status} from ${url}${hint}`);
+    }
+    return { html, jsons };
+  } finally {
+    await context.close().catch(() => {});
+  }
+}
+
 // Fetch a JSON feed from inside the dealer's page. We first load a same-origin
 // page (which clears the bot check the way a real visitor does), then run the
 // site's own `fetch` for each candidate URL and return the first JSON response.

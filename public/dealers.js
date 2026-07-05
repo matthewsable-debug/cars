@@ -26,6 +26,7 @@ function notify(msg, kind = "ok") {
 // Compact, pasteable diagnostic of the page structure + crawl (for tuning).
 function debugSummary(d) {
   if (!d) return "";
+  if (d.error && d.hubCars == null) return ` · DIAG: fetch=${d.fetchMode || "?"} · error="${d.error}"`;
   const parts = [
     d.fetchMode ? `fetch=${d.fetchMode}` : null,
     d.bytes != null ? `bytes=${d.bytes}` : null,
@@ -35,6 +36,7 @@ function debugSummary(d) {
     `jsonLd=${d.jsonLd}`, `embJson=${d.embeddedJson}`,
   ].filter(Boolean);
   if (d.subLinksFound != null) parts.push(`subLinks=${d.subLinksFound}`);
+  if (d.apiFeeds != null) parts.push(`apiFeeds=${d.apiFeeds}`);
   if (d.rawCars != null) parts.push(`rawCars=${d.rawCars}`);
   if (d.total != null) parts.push(`avail=${d.total}`);
   if (d.crawled?.length) parts.push(`crawled=[${d.crawled.join(", ")}]`);
