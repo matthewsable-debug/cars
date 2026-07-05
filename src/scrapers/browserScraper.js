@@ -102,16 +102,21 @@ export async function renderCapture(url, { waitSelector, timeoutMs = 20000, quic
     Object.defineProperty(navigator, "webdriver", { get: () => undefined });
   });
   const page = await context.newPage();
-  const jsons = [];
+  // Capture data responses the page fetches while rendering. We take ALL XHR/
+  // fetch bodies (not just declared JSON) so we also catch JSON served with an
+  // odd content-type and HTML-fragment AJAX — then extract cars from each body
+  // (JSON first, else HTML) downstream.
+  const feeds = [];
   page.on("response", async (resp) => {
-    if (jsons.length >= 15) return;
+    if (feeds.length >= 20) return;
     try {
-      const ct = (resp.headers()["content-type"] || "").toLowerCase();
-      const u = resp.url();
-      if (!ct.includes("json") && !/\.json(\?|$)/i.test(u)) return;
+      const rt = resp.request().resourceType();
+      if (rt !== "xhr" && rt !== "fetch") return;
       const t = await resp.text();
       const s = t.trim();
-      if (s.length > 40 && (s[0] === "{" || s[0] === "[")) jsons.push(t.slice(0, 3_000_000));
+      if (s.length > 40 && (s[0] === "{" || s[0] === "[" || s[0] === "<")) {
+        feeds.push({ url: resp.url(), body: t.slice(0, 3_000_000) });
+      }
     } catch {
       /* response body not retained / already consumed */
     }
@@ -129,7 +134,7 @@ export async function renderCapture(url, { waitSelector, timeoutMs = 20000, quic
       const hint = status === 403 || status === 429 ? " — likely bot protection blocking headless Chromium" : "";
       throw new Error(`HTTP ${status} from ${url}${hint}`);
     }
-    return { html, jsons };
+    return { html, feeds };
   } finally {
     await context.close().catch(() => {});
   }

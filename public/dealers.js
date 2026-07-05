@@ -36,6 +36,7 @@ function debugSummary(d) {
     `jsonLd=${d.jsonLd}`, `embJson=${d.embeddedJson}`,
   ].filter(Boolean);
   if (d.subLinksFound != null) parts.push(`subLinks=${d.subLinksFound}`);
+  if (d.xhr != null) parts.push(`xhr=${d.xhr}`);
   if (d.apiFeeds != null) parts.push(`apiFeeds=${d.apiFeeds}`);
   if (d.rawCars != null) parts.push(`rawCars=${d.rawCars}`);
   if (d.total != null) parts.push(`avail=${d.total}`);

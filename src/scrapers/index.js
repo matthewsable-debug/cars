@@ -155,14 +155,17 @@ async function scrapeWeb(dealer, adapter, { fetchFn, jsonFetch, browser, debug }
     : async (url) => ({ html: await fetchFn(url), jsons: [] });
 
   const byId = new Map();
-  let apiFeeds = 0;
-  // Extract cars from a page's HTML AND any JSON API bodies it fetched, add them
-  // to the shared map, and return how many THIS page yielded (its own count, so
-  // per-page diagnostics stay accurate under concurrent crawling).
+  let apiFeeds = 0; // captured XHR/fetch bodies that yielded cars
+  let xhrSeen = 0; // captured XHR/fetch bodies total (data requests observed)
+  // Extract cars from a page's HTML AND any XHR/fetch bodies it fetched (JSON API
+  // or HTML fragment), add them to the shared map, and return how many THIS page
+  // yielded (its own count, so per-page diagnostics stay accurate under crawling).
   const extractInto = (page, url) => {
     const found = [...autoExtractListings(page.html, url)];
-    for (const j of page.jsons || []) {
-      const items = extractListingsFromJson(j, url);
+    for (const f of page.feeds || []) {
+      xhrSeen++;
+      let items = extractListingsFromJson(f.body, f.url || url); // try JSON
+      if (!items.length) items = autoExtractListings(f.body, f.url || url); // else HTML fragment
       if (items.length) apiFeeds++;
       found.push(...items);
     }
@@ -203,7 +206,8 @@ async function scrapeWeb(dealer, adapter, { fetchFn, jsonFetch, browser, debug }
 
   const listings = [...byId.values()].filter((l) => !l.sold);
   if (dbg) {
-    dbg.apiFeeds = apiFeeds; // JSON API responses that yielded cars
+    dbg.xhr = xhrSeen; // XHR/fetch data responses observed while rendering
+    dbg.apiFeeds = apiFeeds; // ...of those, how many yielded cars
     dbg.rawCars = byId.size; // unique cars found before dropping sold ones
     dbg.total = listings.length; // available cars returned
   }
